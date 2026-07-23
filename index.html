@@ -897,22 +897,44 @@ const CHAIN_COLOR = {
   '消费': '#cfc09a', '能源工业': '#a8846a', '通信': '#d0765a', '自选': '#e5ddca',
 };
 function layoutGalaxy() {
-  const D = sd => 2 * 2.7 * sd.mkt + 0.8;   // 星球直径（生态星球版：半径 R = 2.7 × mkt）
+  const D = sd => 2 * 2.7 * sd.mkt + 0.8;   // 星球直径（含边距）
   const n = SECTOR_ORDER.length;
   const byChain = {};
   GALAXY.forEach(sd => { (byChain[sd.chain] = byChain[sd.chain] || []).push(sd); });
+  const nodes = [];
   SECTOR_ORDER.forEach((ch, ci) => {
     const members = byChain[ch] || [];
-    const cx = (ci - (n - 1) / 2) * 52;   // 星系与星系之间大幅拉开
-    const cz = (ci % 2 ? -26 : 18) + (ci % 3) * 6;   // 前后错位也拉大，避免相邻星系混叠
+    const cx = (ci - (n - 1) / 2) * 52;
+    const cz = (ci % 2 ? -26 : 18) + (ci % 3) * 6;
     let r = 0;
     members.forEach((sd, i) => {
-      if (i > 0) r += (D(members[i - 1]) + D(sd)) * 0.55;   // 簇内：距离≈直径之和的一半多，抱团不重叠
+      if (i > 0) r += (D(members[i - 1]) + D(sd)) * 0.55;
       const a = i * 2.4;
-      sd.xoff = cx + Math.cos(a) * r;
-      sd.lane = cz + Math.sin(a) * r * 0.95;
+      nodes.push({ sd, x: cx + Math.cos(a) * r, z: cz + Math.sin(a) * r * 0.95, cx, cz, d: D(sd) });
     });
   });
+  // 硬约束松弛：任意两颗星球之间的距离 ≥ 两者直径之和（全局两两检查，互相推开直至无违规）
+  for (let iter = 0; iter < 120; iter++) {
+    let moved = false;
+    for (let i = 0; i < nodes.length; i++) for (let j = i + 1; j < nodes.length; j++) {
+      const A = nodes[i], B = nodes[j];
+      const need = A.d + B.d;
+      let dx = B.x - A.x, dz = B.z - A.z;
+      // 纵深方向被相机透视压缩，按 0.55 折算，逼星球在 z 向拉开更多
+      let dist = Math.hypot(dx, dz * 0.55);
+      if (dist < 0.001) { dx = Math.cos(i * 2.7); dz = Math.sin(i * 2.7); dist = 0.001; }
+      if (dist < need - 0.01) {
+        const push = (need - dist) / 2 / dist;
+        A.x -= dx * push; A.z -= dz * push;
+        B.x += dx * push; B.z += dz * push;
+        moved = true;
+      }
+    }
+    // 前期轻拉回星系中心保持抱团（分离约束在后，最终仍保证不违规）
+    if (iter < 50) nodes.forEach(nd => { nd.x += (nd.cx - nd.x) * 0.015; nd.z += (nd.cz - nd.z) * 0.015; });
+    if (!moved && iter >= 50) break;
+  }
+  nodes.forEach(nd => { nd.sd.xoff = nd.x; nd.sd.lane = nd.z; });
 }
 
 /* ---- 加载调度：AI 链优先，其余后台 ---- */
