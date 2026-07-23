@@ -33,6 +33,7 @@
   #scene.dragging { cursor:grabbing; }
 
   .header { position:fixed; top:18px; left:22px; z-index:10; pointer-events:none; }
+  .header #langBtn { pointer-events:auto; }
   .header h1 { font-size:18px; font-weight:650; letter-spacing:.5px; }
   .header .badge {
     display:inline-block; margin-top:6px; padding:2px 8px; border:1px solid var(--border);
@@ -925,7 +926,7 @@ function layoutGalaxy() {
   const nodes = [];
   SECTOR_ORDER.forEach((ch, ci) => {
     const members = byChain[ch] || [];
-    const cx = (ci - (n - 1) / 2) * 52;
+    const cx = (ci - (n - 1) / 2) * 36;
     const cz = (ci % 2 ? -26 : 18) + (ci % 3) * 6;
     let r = 0;
     members.forEach((sd, i) => {
@@ -1351,7 +1352,7 @@ function rebuildStar(st) {
       vv.set(p.getX(i), p.getY(i), p.getZ(i));
       const d = vv.length(); vv.normalize();
       const n = defN(vv.x * 1.6, vv.y * 1.6, vv.z * 1.6, 3);
-      const disp = 1 + (n - 0.5) * 1.5 * irr;
+      const disp = 1 + (n - 0.5) * 2.2 * irr;
       p.setXYZ(i, vv.x * d * disp, vv.y * d * disp, vv.z * d * disp);
     }
     geo.computeVertexNormals();
@@ -2393,6 +2394,11 @@ document.getElementById('searchBtn').addEventListener('click', () => {
     layoutGalaxy();
     if (typeof makeStarForNew === 'function') makeStarForNew(sd);
   }
+  // 镜头飞到目标星球
+  const stx = stars.find(x => x.sd === sd) || (typeof State !== 'undefined' && State.focus);
+  camGoal.set(timeX(State.timeIdx) + (sd.xoff || 0), 2, sd.lane || 0);
+  if (stx) setFocus(stx);
+  UIStatus.note(t + ' 数据加载中…（不在数据仓库的新股票需 EDGAR 实时通道或 FMP key）');
   Hub.loadCompany(t);
 });
 
