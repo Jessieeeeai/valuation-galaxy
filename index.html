@@ -394,7 +394,7 @@ const Hub = {
   cikMap: null, companies: {}, sectorStats: {},
   queueDelay: 420, lastReq: 0,   // companyfacts 单请求较大，节流放宽保护公共代理
   TAGS: {
-    rev:   { cands: ['RevenueFromContractWithCustomerExcludingAssessedTax','Revenues','SalesRevenueNet','RevenueFromContractWithCustomerIncludingAssessedTax'], kind: 'dur' },
+    rev:   { cands: ['RevenueFromContractWithCustomerExcludingAssessedTax','Revenues','SalesRevenueNet','RevenueFromContractWithCustomerIncludingAssessedTax','RevenuesNetOfInterestExpense'], kind: 'dur' },
     ni:    { cands: ['NetIncomeLoss'], kind: 'dur' },
     ocf:   { cands: ['NetCashProvidedByUsedInOperatingActivities','NetCashProvidedByUsedInOperatingActivitiesContinuingOperations'], kind: 'dur' },
     capex: { cands: ['PaymentsToAcquirePropertyPlantAndEquipment','PaymentsToAcquirePropertyAndEquipmentAndIntangibleAssets','PaymentsToAcquireProductiveAssets','PaymentsToAcquirePropertyPlantAndEquipmentAndIntangibleAssets'], kind: 'dur' },
