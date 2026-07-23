@@ -4,7 +4,7 @@ import { readFileSync, writeFileSync, mkdirSync } from 'fs';
 
 const UA = 'ValuationGalaxy/1.0 research tool (contact: giantcutie999@gmail.com)';
 const TAGS = [
-  'RevenueFromContractWithCustomerExcludingAssessedTax', 'Revenues', 'SalesRevenueNet', 'RevenueFromContractWithCustomerIncludingAssessedTax',
+  'RevenueFromContractWithCustomerExcludingAssessedTax', 'Revenues', 'SalesRevenueNet', 'RevenueFromContractWithCustomerIncludingAssessedTax', 'RevenuesNetOfInterestExpense',
   'NetIncomeLoss',
   'NetCashProvidedByUsedInOperatingActivities', 'NetCashProvidedByUsedInOperatingActivitiesContinuingOperations',
   'PaymentsToAcquirePropertyPlantAndEquipment', 'PaymentsToAcquirePropertyAndEquipmentAndIntangibleAssets', 'PaymentsToAcquireProductiveAssets', 'PaymentsToAcquirePropertyPlantAndEquipmentAndIntangibleAssets',
