@@ -224,7 +224,7 @@
 </div>
 
 <div class="legend" id="legendText">
-  <b>怎么读:</b> 大陆土色=行业 · <b>🌋火山</b>=绝对估值 <b>🌊海面</b>=历史分位 <b>🌫雾霾</b>=同行溢价 <b>🏜沙漠</b>=质量恶化 <b>🌴丛林</b>=行业周期 · 越泡沫越<b>变形发烫转得快</b> · <b>锈红卫星</b>=红旗 · 光晕 <b style="color:#9fe08a">绿=洼地</b>/<b style="color:#ff9a7a">红=泡沫</b> · 气泡=今日涨跌 · 云海横轴=时间</div>
+  <b>怎么读:</b> 大陆土色=行业 · <b>🌋火山</b>=绝对估值 <b>🌊海面</b>=历史分位 <b>🌫雾霾</b>=同行溢价 <b>🏜沙漠</b>=质量恶化 <b>🌴丛林</b>=行业周期 · 越泡沫越<b>变形发烫转得快</b> · <b>锈红卫星</b>=红旗 · 名牌数字=<b>估值温度</b>(非涨跌) · 光晕 <b style="color:#9fe08a">绿=洼地</b>/<b style="color:#ff9a7a">红=泡沫</b> · 气泡=今日涨跌 · 云海横轴=时间</div>
 
 <!-- 顶部中央：搜索栏 + 小地图 -->
 <div id="topbar" style="position:fixed; top:14px; left:46%; transform:translateX(-50%); z-index:12; display:flex; flex-direction:row; align-items:flex-start; gap:10px;">
@@ -1134,15 +1134,16 @@ function nameTexture(ticker, temp, chg) {
   x.font = '800 100px system-ui, sans-serif';
   x.lineWidth = 14; x.strokeStyle = 'rgba(10,10,16,.9)'; x.strokeText(ticker, 256, 104);
   x.fillStyle = '#ffffff'; x.fillText(ticker, 256, 104);
-  const tt = temp == null ? (State.lang === 'zh' ? '加载中…' : 'loading…') : (State.lang === 'zh' ? '温度 ' : 'Temp ') + (temp > 0 ? '+' : '') + temp;
+  const tt = temp == null ? (State.lang === 'zh' ? '加载中…' : 'loading…') : (State.lang === 'zh' ? '估值 ' : 'Val ') + (temp > 0 ? '+' : '') + temp;
   x.font = '700 58px system-ui, sans-serif';
   x.lineWidth = 10; x.strokeText(tt, 256, 178);
   x.fillStyle = temp == null ? '#9a9aa8' : tempColorCSS(temp, 90, 62); x.fillText(tt, 256, 178);
-  if (chg !== undefined && chg != null) {
-    const ct = '今日 ' + (chg >= 0 ? '+' : '') + chg.toFixed(1) + '%';
+  if (chg !== undefined) {
+    const day = State.lang === 'zh' ? '今日 ' : 'Day ';
+    const ct = chg == null ? day + '--' : day + (chg >= 0 ? '+' : '') + chg.toFixed(1) + '%';
     x.font = '700 52px system-ui, sans-serif';
     x.lineWidth = 9; x.strokeText(ct, 256, 246);
-    x.fillStyle = chg >= 0 ? '#2ec55e' : '#f05555'; x.fillText(ct, 256, 246);
+    x.fillStyle = chg == null ? '#9a9aa8' : (chg >= 0 ? '#2ec55e' : '#f05555'); x.fillText(ct, 256, 246);
   }
   return new THREE.CanvasTexture(c);
 }
@@ -1342,15 +1343,15 @@ function rebuildStar(st) {
   st.deco = new THREE.Group();
   // 球体：越热越变形（洼地=标准正圆）
   const geo = new THREE.SphereGeometry(R, 40, 40);
-  if (!ghost && heat > 0.45) {
+  if (!ghost && heat > 0.5) {
     const defN = makeNoise3D(1000 + (sd.ticker.charCodeAt(0) || 65) * 7);
     const p = geo.attributes.position, vv = new THREE.Vector3();
-    const irr = Math.pow((heat - 0.45) / 0.55, 1.1);
+    const irr = (heat - 0.5) / 0.5;
     for (let i = 0; i < p.count; i++) {
       vv.set(p.getX(i), p.getY(i), p.getZ(i));
       const d = vv.length(); vv.normalize();
       const n = defN(vv.x * 1.6, vv.y * 1.6, vv.z * 1.6, 3);
-      const disp = 1 + (n - 0.5) * 0.9 * irr;
+      const disp = 1 + (n - 0.5) * 1.5 * irr;
       p.setXYZ(i, vv.x * d * disp, vv.y * d * disp, vv.z * d * disp);
     }
     geo.computeVertexNormals();
@@ -1434,7 +1435,7 @@ function rebuildStar(st) {
   if (st.bubble) { st.group.remove(st.bubble); st.bubble.geometry.dispose(); st.bubble.material.dispose(); }
   const bubbleR = st.R * 1.95 + 0.4;   // 包住加厚的大气壳
   // 名牌挪到气泡外面（上方悬浮）
-  st.name = new THREE.Sprite(new THREE.SpriteMaterial({ map: nameTexture(sd.ticker, ghost ? null : temp, (!ghost && priceOf(sd.ticker) != null) ? sd.chg : undefined), transparent: true, depthTest: false, opacity: ghost ? 0.55 : 1 }));
+  st.name = new THREE.Sprite(new THREE.SpriteMaterial({ map: nameTexture(sd.ticker, ghost ? null : temp, ghost ? undefined : (priceOf(sd.ticker) != null ? sd.chg : null)), transparent: true, depthTest: false, opacity: ghost ? 0.55 : 1 }));
   st.name.scale.set(3.4 * Math.max(sd.mkt, 0.55), 1.9 * Math.max(sd.mkt, 0.55), 1);
   st.name.position.set(0, bubbleR + 1.1, 0);
   st.group.add(st.name);
@@ -1714,8 +1715,8 @@ addEventListener('pointermove', e => {
     const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
     camGoal.addScaledVector(right, -dx * k);
     camGoal.addScaledVector(fwd, dy * k * 1.6);   // 拖上=画面向里推进，拖下=往回拉
-    camGoal.x = Engine.clamp(camGoal.x, -420, 420);
-    camGoal.z = Engine.clamp(camGoal.z, -220, 220);
+    camGoal.x = Engine.clamp(camGoal.x, -700, 700);
+    camGoal.z = Engine.clamp(camGoal.z, -520, 520);
     px = e.clientX; py = e.clientY;
   } else if (orbiting) {
     moved += Math.abs(dx) + Math.abs(dy);
@@ -1842,8 +1843,8 @@ function drawMinimap() {
 if (mmCanvas) mmCanvas.addEventListener('click', e => {
   const r = mmCanvas.getBoundingClientRect();
   const px = (e.clientX - r.left) / r.width * MM.W, py = (e.clientY - r.top) / r.height * MM.H;
-  camGoal.x = Engine.clamp((px / MM.W - .5) * 2 * MM.xr, -420, 420);
-  if (py <= MM.split) camGoal.z = Engine.clamp((py / MM.split - .5) * 2 * MM.zr, -220, 220);
+  camGoal.x = Engine.clamp((px / MM.W - .5) * 2 * MM.xr, -700, 700);
+  if (py <= MM.split) camGoal.z = Engine.clamp((py / MM.split - .5) * 2 * MM.zr, -520, 520);
 });
 
 /* ---- 主循环 ---- */
