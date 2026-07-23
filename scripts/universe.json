@@ -1,0 +1,554 @@
+[
+ {
+  "ticker": "NVDA",
+  "name": "英伟达",
+  "sector": "AI芯片",
+  "cik": 1045810
+ },
+ {
+  "ticker": "AMD",
+  "name": "超威半导体",
+  "sector": "AI芯片",
+  "cik": 2488
+ },
+ {
+  "ticker": "AVGO",
+  "name": "博通",
+  "sector": "AI芯片",
+  "cik": 1730168
+ },
+ {
+  "ticker": "QCOM",
+  "name": "高通",
+  "sector": "AI芯片",
+  "cik": 804328
+ },
+ {
+  "ticker": "MRVL",
+  "name": "迈威尔",
+  "sector": "AI芯片",
+  "cik": 1835632
+ },
+ {
+  "ticker": "ARM",
+  "name": "安谋",
+  "sector": "AI芯片",
+  "cik": 1973239
+ },
+ {
+  "ticker": "MU",
+  "name": "美光",
+  "sector": "AI芯片",
+  "cik": 723125
+ },
+ {
+  "ticker": "INTC",
+  "name": "英特尔",
+  "sector": "AI芯片",
+  "cik": 50863
+ },
+ {
+  "ticker": "TSM",
+  "name": "台积电",
+  "sector": "AI芯片",
+  "cik": null
+ },
+ {
+  "ticker": "AMAT",
+  "name": "应用材料",
+  "sector": "半导体设备",
+  "cik": 6951
+ },
+ {
+  "ticker": "LRCX",
+  "name": "拉姆研究",
+  "sector": "半导体设备",
+  "cik": 707549
+ },
+ {
+  "ticker": "KLAC",
+  "name": "科磊",
+  "sector": "半导体设备",
+  "cik": 319201
+ },
+ {
+  "ticker": "SNPS",
+  "name": "新思科技",
+  "sector": "半导体设备",
+  "cik": 883241
+ },
+ {
+  "ticker": "CDNS",
+  "name": "铿腾电子",
+  "sector": "半导体设备",
+  "cik": 813672
+ },
+ {
+  "ticker": "ASML",
+  "name": "阿斯麦",
+  "sector": "半导体设备",
+  "cik": 937966
+ },
+ {
+  "ticker": "MSFT",
+  "name": "微软",
+  "sector": "云巨头",
+  "cik": 789019
+ },
+ {
+  "ticker": "GOOGL",
+  "name": "谷歌",
+  "sector": "云巨头",
+  "cik": 1652044
+ },
+ {
+  "ticker": "AMZN",
+  "name": "亚马逊",
+  "sector": "云巨头",
+  "cik": 1018724
+ },
+ {
+  "ticker": "META",
+  "name": "Meta",
+  "sector": "云巨头",
+  "cik": 1326801
+ },
+ {
+  "ticker": "AAPL",
+  "name": "苹果",
+  "sector": "云巨头",
+  "cik": 320193
+ },
+ {
+  "ticker": "ORCL",
+  "name": "甲骨文",
+  "sector": "云巨头",
+  "cik": 1341439
+ },
+ {
+  "ticker": "IBM",
+  "name": "IBM",
+  "sector": "云巨头",
+  "cik": 51143
+ },
+ {
+  "ticker": "CRM",
+  "name": "赛富时",
+  "sector": "软件SaaS",
+  "cik": 1108524
+ },
+ {
+  "ticker": "NOW",
+  "name": "ServiceNow",
+  "sector": "软件SaaS",
+  "cik": 1373715
+ },
+ {
+  "ticker": "SNOW",
+  "name": "Snowflake",
+  "sector": "软件SaaS",
+  "cik": 1640147
+ },
+ {
+  "ticker": "PLTR",
+  "name": "Palantir",
+  "sector": "软件SaaS",
+  "cik": 1321655
+ },
+ {
+  "ticker": "ADBE",
+  "name": "Adobe",
+  "sector": "软件SaaS",
+  "cik": 796343
+ },
+ {
+  "ticker": "INTU",
+  "name": "财捷",
+  "sector": "软件SaaS",
+  "cik": 896878
+ },
+ {
+  "ticker": "CRWD",
+  "name": "CrowdStrike",
+  "sector": "软件SaaS",
+  "cik": 1535527
+ },
+ {
+  "ticker": "PANW",
+  "name": "派拓网络",
+  "sector": "软件SaaS",
+  "cik": 1327567
+ },
+ {
+  "ticker": "DDOG",
+  "name": "Datadog",
+  "sector": "软件SaaS",
+  "cik": 1561550
+ },
+ {
+  "ticker": "NET",
+  "name": "Cloudflare",
+  "sector": "软件SaaS",
+  "cik": 1477333
+ },
+ {
+  "ticker": "MDB",
+  "name": "MongoDB",
+  "sector": "软件SaaS",
+  "cik": 1441816
+ },
+ {
+  "ticker": "ZS",
+  "name": "Zscaler",
+  "sector": "软件SaaS",
+  "cik": 1713683
+ },
+ {
+  "ticker": "TEAM",
+  "name": "Atlassian",
+  "sector": "软件SaaS",
+  "cik": 1650372
+ },
+ {
+  "ticker": "WDAY",
+  "name": "Workday",
+  "sector": "软件SaaS",
+  "cik": 1327811
+ },
+ {
+  "ticker": "NFLX",
+  "name": "奈飞",
+  "sector": "互联网",
+  "cik": 1065280
+ },
+ {
+  "ticker": "UBER",
+  "name": "优步",
+  "sector": "互联网",
+  "cik": 1543151
+ },
+ {
+  "ticker": "ABNB",
+  "name": "爱彼迎",
+  "sector": "互联网",
+  "cik": 1559720
+ },
+ {
+  "ticker": "SHOP",
+  "name": "Shopify",
+  "sector": "互联网",
+  "cik": 1594805
+ },
+ {
+  "ticker": "SPOT",
+  "name": "Spotify",
+  "sector": "互联网",
+  "cik": 1639920
+ },
+ {
+  "ticker": "COIN",
+  "name": "Coinbase",
+  "sector": "互联网",
+  "cik": 1679788
+ },
+ {
+  "ticker": "PYPL",
+  "name": "PayPal",
+  "sector": "互联网",
+  "cik": 1633917
+ },
+ {
+  "ticker": "VRT",
+  "name": "维谛技术",
+  "sector": "数据中心电力",
+  "cik": 1674101
+ },
+ {
+  "ticker": "ETN",
+  "name": "伊顿",
+  "sector": "数据中心电力",
+  "cik": 1551182
+ },
+ {
+  "ticker": "CEG",
+  "name": "星座能源",
+  "sector": "数据中心电力",
+  "cik": 1868275
+ },
+ {
+  "ticker": "VST",
+  "name": "Vistra",
+  "sector": "数据中心电力",
+  "cik": 1692819
+ },
+ {
+  "ticker": "NRG",
+  "name": "NRG能源",
+  "sector": "数据中心电力",
+  "cik": 1013871
+ },
+ {
+  "ticker": "GEV",
+  "name": "GE Vernova",
+  "sector": "数据中心电力",
+  "cik": 1996810
+ },
+ {
+  "ticker": "SMCI",
+  "name": "超微电脑",
+  "sector": "数据中心电力",
+  "cik": 1375365
+ },
+ {
+  "ticker": "DELL",
+  "name": "戴尔",
+  "sector": "数据中心电力",
+  "cik": 1571949
+ },
+ {
+  "ticker": "ANET",
+  "name": "Arista",
+  "sector": "数据中心电力",
+  "cik": 1596532
+ },
+ {
+  "ticker": "JPM",
+  "name": "摩根大通",
+  "sector": "金融",
+  "cik": 19617
+ },
+ {
+  "ticker": "BAC",
+  "name": "美国银行",
+  "sector": "金融",
+  "cik": 70858
+ },
+ {
+  "ticker": "GS",
+  "name": "高盛",
+  "sector": "金融",
+  "cik": 886982
+ },
+ {
+  "ticker": "MS",
+  "name": "摩根士丹利",
+  "sector": "金融",
+  "cik": 895421
+ },
+ {
+  "ticker": "V",
+  "name": "维萨",
+  "sector": "金融",
+  "cik": 1403161
+ },
+ {
+  "ticker": "MA",
+  "name": "万事达",
+  "sector": "金融",
+  "cik": 1141391
+ },
+ {
+  "ticker": "AXP",
+  "name": "美国运通",
+  "sector": "金融",
+  "cik": 4962
+ },
+ {
+  "ticker": "BLK",
+  "name": "贝莱德",
+  "sector": "金融",
+  "cik": 2012383
+ },
+ {
+  "ticker": "LLY",
+  "name": "礼来",
+  "sector": "医疗",
+  "cik": 59478
+ },
+ {
+  "ticker": "UNH",
+  "name": "联合健康",
+  "sector": "医疗",
+  "cik": 731766
+ },
+ {
+  "ticker": "JNJ",
+  "name": "强生",
+  "sector": "医疗",
+  "cik": 200406
+ },
+ {
+  "ticker": "ABBV",
+  "name": "艾伯维",
+  "sector": "医疗",
+  "cik": 1551152
+ },
+ {
+  "ticker": "MRK",
+  "name": "默沙东",
+  "sector": "医疗",
+  "cik": 310158
+ },
+ {
+  "ticker": "PFE",
+  "name": "辉瑞",
+  "sector": "医疗",
+  "cik": 78003
+ },
+ {
+  "ticker": "TMO",
+  "name": "赛默飞",
+  "sector": "医疗",
+  "cik": 97745
+ },
+ {
+  "ticker": "ISRG",
+  "name": "直觉外科",
+  "sector": "医疗",
+  "cik": 1035267
+ },
+ {
+  "ticker": "WMT",
+  "name": "沃尔玛",
+  "sector": "消费",
+  "cik": 104169
+ },
+ {
+  "ticker": "COST",
+  "name": "开市客",
+  "sector": "消费",
+  "cik": 909832
+ },
+ {
+  "ticker": "PG",
+  "name": "宝洁",
+  "sector": "消费",
+  "cik": 80424
+ },
+ {
+  "ticker": "KO",
+  "name": "可口可乐",
+  "sector": "消费",
+  "cik": 21344
+ },
+ {
+  "ticker": "PEP",
+  "name": "百事",
+  "sector": "消费",
+  "cik": 77476
+ },
+ {
+  "ticker": "MCD",
+  "name": "麦当劳",
+  "sector": "消费",
+  "cik": 63908
+ },
+ {
+  "ticker": "NKE",
+  "name": "耐克",
+  "sector": "消费",
+  "cik": 320187
+ },
+ {
+  "ticker": "SBUX",
+  "name": "星巴克",
+  "sector": "消费",
+  "cik": 829224
+ },
+ {
+  "ticker": "HD",
+  "name": "家得宝",
+  "sector": "消费",
+  "cik": 354950
+ },
+ {
+  "ticker": "DIS",
+  "name": "迪士尼",
+  "sector": "消费",
+  "cik": 1744489
+ },
+ {
+  "ticker": "XOM",
+  "name": "埃克森美孚",
+  "sector": "能源工业",
+  "cik": 34088
+ },
+ {
+  "ticker": "CVX",
+  "name": "雪佛龙",
+  "sector": "能源工业",
+  "cik": 93410
+ },
+ {
+  "ticker": "COP",
+  "name": "康菲石油",
+  "sector": "能源工业",
+  "cik": 1163165
+ },
+ {
+  "ticker": "GE",
+  "name": "通用电气",
+  "sector": "能源工业",
+  "cik": 40545
+ },
+ {
+  "ticker": "CAT",
+  "name": "卡特彼勒",
+  "sector": "能源工业",
+  "cik": 18230
+ },
+ {
+  "ticker": "BA",
+  "name": "波音",
+  "sector": "能源工业",
+  "cik": 12927
+ },
+ {
+  "ticker": "DE",
+  "name": "迪尔",
+  "sector": "能源工业",
+  "cik": 315189
+ },
+ {
+  "ticker": "LMT",
+  "name": "洛克希德",
+  "sector": "能源工业",
+  "cik": 936468
+ },
+ {
+  "ticker": "RTX",
+  "name": "雷神",
+  "sector": "能源工业",
+  "cik": 101829
+ },
+ {
+  "ticker": "HON",
+  "name": "霍尼韦尔",
+  "sector": "能源工业",
+  "cik": 773840
+ },
+ {
+  "ticker": "TMUS",
+  "name": "T-Mobile",
+  "sector": "通信",
+  "cik": 1283699
+ },
+ {
+  "ticker": "VZ",
+  "name": "威瑞森",
+  "sector": "通信",
+  "cik": 732712
+ },
+ {
+  "ticker": "T",
+  "name": "AT&T",
+  "sector": "通信",
+  "cik": 732717
+ },
+ {
+  "ticker": "CMCSA",
+  "name": "康卡斯特",
+  "sector": "通信",
+  "cik": 1166691
+ }
+]
