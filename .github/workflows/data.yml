@@ -1,0 +1,30 @@
+name: fetch-edgar-data
+
+on:
+  workflow_dispatch:
+  schedule:
+    - cron: '23 6 * * *'   # 每天 06:23 UTC 自动更新
+  push:
+    branches: [main]
+    paths: ['scripts/**']
+
+permissions:
+  contents: write
+
+jobs:
+  fetch:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+      - name: Fetch EDGAR companyfacts
+        run: node scripts/fetch_edgar.mjs
+      - name: Commit data
+        run: |
+          git config user.name "galaxy-bot"
+          git config user.email "actions@github.com"
+          git add data/
+          git diff --cached --quiet || git commit -m "data: refresh EDGAR facts $(date -u +%F)"
+          git push
