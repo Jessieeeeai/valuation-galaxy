@@ -1840,6 +1840,7 @@ canvas.addEventListener('click', e => {
 /* ---- 全量重建（权重变化时）---- */
 rebuildAll = function () {
   updateCloudMacro();
+  layoutGalaxy();   // 尺寸(市值)可能已变，重算间距：任意两星距离 ≥ 直径之和
   stars.forEach(rebuildStar);
   if (State.focus) { buildTips(State.focus); rebuildSparks(); }
   updateChainSprites();
