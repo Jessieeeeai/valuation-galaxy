@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1.0">
-<title>估值星系 · 真数据版 v1.4</title>
+<title>估值星系 · 真数据版 v2.0</title>
 <style>
   :root {
     color-scheme: dark;
@@ -189,7 +189,7 @@
 
 <div class="header">
   <h1>估值星系 · Valuation Galaxy</h1>
-  <span class="badge" style="color:#7ee08a; border-color:rgba(126,224,138,.4)">真数据 v1.4 · 数据仓库(每日自动更新) + EDGAR + FMP</span>
+  <span class="badge" style="color:#7ee08a; border-color:rgba(126,224,138,.4)">真数据 v2.0 · 生态星球 · 数据仓库每日自动更新</span>
   <div id="loadStatus" style="margin-top:6px; font-size:12px; color:var(--text-secondary)">EDGAR 待加载</div>
   <div id="loadNote" style="font-size:11px; color:var(--text-muted)"></div>
   <div style="pointer-events:auto; display:flex; gap:6px; margin-top:8px; flex-wrap:wrap">
@@ -223,10 +223,7 @@
 </div>
 
 <div class="legend">
-  <b>怎么读：</b><b>星色=行业</b>（黄=算力 蓝=云 紫=内存 青=应用 白=电力）· 角越长 = 该维度越贵/越危险 · <b>胖瘦+海拔</b> = 加权估值温度 ·
-  <b>光晕</b> 黄绿=洼地 / 黄红=泡沫 · <b>气泡</b> 绿=今日涨 / 红=今日跌 ·
-  <b>环绕火花</b> = 红旗（悬停看证据）· <b>云海 = 时间轴地形图</b>：横轴是时间，地形高度是各期流动性曲线（2022 是深谷）；拖时间滑块星星舰队沿轴行进 · 点云海下钻
-</div>
+  <b>怎么读: <b>大陆土色=行业</b> · 每颗星球五种地貌=五个估值维度: <b>🌋火山</b>=绝对估值过热 · <b>🌊海平面</b>=历史分位水位 · <b>🌫大气雾霾</b>=同行溢价 · <b>🏜沙漠化</b>=质量恶化 · <b>🌴丛林疯长</b>=行业周期过热 · <b>越泡沫越变形发烫，越洼地越正圆山清水秀</b> · <b>锈红卫星</b>=红旗(悬停看证据) · <b>光晕</b> 黄绿=洼地/黄红=泡沫 · <b>气泡</b> 绿=今日涨/红=今日跌 · <b>云海=时间轴地形图</b>: 横轴是时间，地形高度是各期流动性曲线；拖时间滑块星球舰队沿轴行进，点云海下钻</div>
 
 <!-- 顶部中央：搜索栏 + 小地图 -->
 <div id="topbar" style="position:fixed; top:14px; left:50%; transform:translateX(-50%); z-index:12; display:flex; flex-direction:column; align-items:center; gap:8px;">
@@ -887,10 +884,17 @@ const starTemp = sd => {
 };
 
 /* ---- 布局：星座簇（黄金角螺旋，允许遮挡）---- */
+/* 行业 = 大陆土壤色（避开海洋蓝与植被绿） */
+const SOIL_RGB = {
+  'AI芯片': [216,178,94], '半导体设备': [205,130,62], '云巨头': [232,228,218], '软件SaaS': [141,127,154],
+  '互联网': [214,150,160], '数据中心电力': [168,154,144], '金融': [74,66,58], '医疗': [142,68,86],
+  '消费': [184,168,120], '能源工业': [110,79,56], '通信': [180,85,58], '自选': [207,199,178],
+};
+/* 名牌/连线/小地图用的亮化版行业色 */
 const CHAIN_COLOR = {
-  'AI芯片': '#ffd94e', '半导体设备': '#f3c67c', '云巨头': '#82c4ff', '软件SaaS': '#8fd7e6',
-  '互联网': '#a8bfff', '数据中心电力': '#e8e4f5', '金融': '#c8d8b0', '医疗': '#ffc4e0',
-  '消费': '#ffdba8', '能源工业': '#d9c8b8', '通信': '#b8c8d8', '自选': '#ffffff',
+  'AI芯片': '#e8c46e', '半导体设备': '#e0975a', '云巨头': '#eeeade', '软件SaaS': '#a99bc0',
+  '互联网': '#e8a8b2', '数据中心电力': '#c0b2a8', '金融': '#9a8a76', '医疗': '#c07890',
+  '消费': '#cfc09a', '能源工业': '#a8846a', '通信': '#d0765a', '自选': '#e5ddca',
 };
 function layoutGalaxy() {
   const D = sd => {
@@ -1104,40 +1108,171 @@ function nameTexture(ticker, temp, chg) {
   return new THREE.CanvasTexture(c);
 }
 
-/* ---- 星形 ---- */
-/* 角长极度夸张：得分 -100..+100 → 角长 0.25..2.35 倍基础半径（跨度是上版的 3 倍）*/
-const TIPF = sc => 0.25 + 2.10 * (sc + 100) / 200;
-/* 星形轮廓随胖瘦形变：瘦 = 直线尖角星；胖 = 内圈变大 + 边线外鼓成曲线 + 腿变粗，趋近球体 */
-function starShapeFromScores(scores, base, fat) {
-  const shape = new THREE.Shape();
-  const valley = base * (0.30 + 0.52 * fat);
-  const pts = [];
-  for (let i = 0; i < 5; i++) {
-    const aTip = -Math.PI / 2 + i * (Math.PI * 2 / 5);
-    const aVal = aTip + Math.PI / 5;
-    const rTip = base * TIPF(scores[i]);
-    pts.push([Math.cos(aTip) * rTip, Math.sin(aTip) * rTip]);
-    pts.push([Math.cos(aVal) * valley, Math.sin(aVal) * valley]);
+/* ---- 生态星球工具 ---- */
+const TIPF = sc => 0.25 + 2.10 * (sc + 100) / 200;   // 旧接口保留（layoutGalaxy 用）
+const D01 = sc => (sc + 100) / 200;
+function makeNoise3D(seed) {
+  let s = seed; const rnd = () => (s = (s * 16807) % 2147483647) / 2147483647;
+  const N = 16, grid = new Float32Array(N * N * N);
+  for (let i = 0; i < grid.length; i++) grid[i] = rnd();
+  const gv = (x, y, z) => grid[((x % N + N) % N) + ((y % N + N) % N) * N + ((z % N + N) % N) * N * N];
+  const sm = t => t * t * (3 - 2 * t);
+  const base = (x, y, z) => {
+    const xi = Math.floor(x), yi = Math.floor(y), zi = Math.floor(z);
+    const xf = sm(x - xi), yf = sm(y - yi), zf = sm(z - zi);
+    const l = (a, b, t) => a + (b - a) * t;
+    return l(l(l(gv(xi,yi,zi),gv(xi+1,yi,zi),xf), l(gv(xi,yi+1,zi),gv(xi+1,yi+1,zi),xf), yf),
+             l(l(gv(xi,yi,zi+1),gv(xi+1,yi,zi+1),xf), l(gv(xi,yi+1,zi+1),gv(xi+1,yi+1,zi+1),xf), yf), zf);
+  };
+  return (x, y, z, oct = 4) => {
+    let v = 0, amp = 0.5, f = 1;
+    for (let o = 0; o < oct; o++) { v += amp * base(x * f, y * f, z * f); amp *= 0.5; f *= 2.03; }
+    return v;
+  };
+}
+const _texCache = new Map();
+function bioTexture(chain, sea01, des01, for01, heat) {
+  const q = x => Math.round(x * 6);
+  const key = chain + '|' + q(sea01) + q(des01) + q(for01) + q(heat);
+  if (_texCache.has(key)) return _texCache.get(key);
+  const soil = SOIL_RGB[chain] || [180, 160, 120];
+  const W = 256, H = 128;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  let seed = 0; for (const ch of chain) seed = seed * 31 + ch.charCodeAt(0);
+  const elevN = makeNoise3D(seed + 9), forN = makeNoise3D(seed + 55), desN = makeNoise3D(seed + 99);
+  const img = x.createImageData(W, H);
+  const seaLevel = 0.30 + sea01 * 0.26;
+  const desertTh = 0.66 - des01 * 0.34;
+  const forestTh = 0.60 - for01 * 0.22;
+  const lerp = (a, b, t) => a + (b - a) * t;
+  for (let j = 0; j < H; j++) {
+    const v = j / H, lat = (0.5 - v) * Math.PI, cl = Math.cos(lat);
+    for (let i = 0; i < W; i++) {
+      const lon = (i / W) * Math.PI * 2;
+      const px = cl * Math.cos(lon) * 2.2, py = Math.sin(lat) * 2.2, pz = cl * Math.sin(lon) * 2.2;
+      const e = elevN(px + 9, py + 9, pz + 9, 4);
+      let r, g, b;
+      if (e < seaLevel) {
+        const d = Math.min(1, (seaLevel - e) * 4);
+        r = 52 - 22 * d; g = 140 - 52 * d; b = 195 - 48 * d;
+        r = lerp(r, 90, heat * 0.5); g = lerp(g, 70, heat * 0.5); b = lerp(b, 60, heat * 0.6);
+      } else if (e < seaLevel + 0.022) {
+        r = Math.min(255, soil[0] * 1.2 + 40); g = Math.min(255, soil[1] * 1.2 + 36); b = Math.min(255, soil[2] * 1.1 + 30);
+      } else {
+        r = soil[0]; g = soil[1]; b = soil[2];
+        const dv = desN(px, py, pz, 3), fv = forN(px, py, pz, 3);
+        if (dv > desertTh) {
+          r = Math.min(255, soil[0] * 1.28 + 24); g = Math.min(255, soil[1] * 1.22 + 16); b = Math.min(255, soil[2] * 1.1 + 8);
+          r = lerp(r, 226, heat * 0.75); g = lerp(g, 122, heat * 0.75); b = lerp(b, 58, heat * 0.75);
+        } else if (fv > forestTh) {
+          const dense = Math.min(1, (fv - forestTh) * 6);
+          r = lerp(46 - 10 * dense, 170, heat * 0.8);
+          g = lerp(125 + 28 * dense, 120, heat * 0.8);
+          b = lerp(67, 40, heat * 0.8);
+        } else {
+          r = soil[0] * 0.72; g = soil[1] * 0.72; b = soil[2] * 0.72;
+          r = lerp(r, 172, heat * 0.6); g = lerp(g, 96, heat * 0.6); b = lerp(b, 58, heat * 0.6);
+        }
+      }
+      // 整颗星球统一染上行业色相（海洋、植被、沙滩都带一点土壤色）
+      r = lerp(r, soil[0], 0.16); g = lerp(g, soil[1], 0.16); b = lerp(b, soil[2], 0.16);
+      const alat = Math.abs(lat) / (Math.PI / 2);
+      if (alat > 0.84 && heat < 0.6) { const t2 = (alat - 0.84) / 0.16; r += (246 - r) * t2; g += (249 - g) * t2; b += (252 - b) * t2; }
+      const idx = (j * W + i) * 4;
+      img.data[idx] = r; img.data[idx+1] = g; img.data[idx+2] = b; img.data[idx+3] = 255;
+    }
   }
-  shape.moveTo(pts[0][0], pts[0][1]);
-  for (let i = 0; i < 10; i++) {
-    const [x2, y2] = pts[(i + 1) % 10];
-    const [x1, y1] = pts[i];
-    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
-    const bulge = 1 + fat * 0.55;              // 越胖边线越外鼓
-    shape.quadraticCurveTo(mx * bulge, my * bulge, x2, y2);
+  x.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  if (_texCache.size > 500) _texCache.clear();
+  _texCache.set(key, tex);
+  return tex;
+}
+const _cloudCache = new Map();
+function cloudTexture(amt) {
+  const key = Math.round(amt * 5);
+  if (_cloudCache.has(key)) return _cloudCache.get(key);
+  const W = 256, H = 128;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  const n = makeNoise3D(777);
+  const img = x.createImageData(W, H);
+  const th = 0.62 - amt * 0.10;
+  for (let j = 0; j < H; j++) {
+    const v = j / H, lat = (0.5 - v) * Math.PI, cl = Math.cos(lat);
+    for (let i = 0; i < W; i++) {
+      const lon = (i / W) * Math.PI * 2;
+      const val = n(cl * Math.cos(lon) * 3, Math.sin(lat) * 3, cl * Math.sin(lon) * 3, 3);
+      const a = val > th ? Math.min(1, (val - th) * 7) : 0;
+      const idx = (j * W + i) * 4;
+      img.data[idx] = img.data[idx+1] = img.data[idx+2] = 255;
+      img.data[idx+3] = a * 200;
+    }
   }
-  shape.closePath();
-  return shape;
+  x.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  _cloudCache.set(key, tex); return tex;
+}
+const _hazeCache = new Map();
+function hazeTexture(atm, smoggy) {
+  const key = Math.round(atm * 5) + (smoggy ? 'S' : 'C');
+  if (_hazeCache.has(key)) return _hazeCache.get(key);
+  const W = 256, H = 128;
+  const c = document.createElement('canvas'); c.width = W; c.height = H;
+  const x = c.getContext('2d');
+  const n = makeNoise3D(555);
+  const img = x.createImageData(W, H);
+  const base = smoggy ? [216, 178, 110] : [235, 240, 250];
+  const th = 0.56 - atm * 0.12;
+  for (let j = 0; j < H; j++) {
+    const v = j / H, lat = (0.5 - v) * Math.PI, cl = Math.cos(lat);
+    for (let i = 0; i < W; i++) {
+      const lon = (i / W) * Math.PI * 2;
+      const val = n(cl * Math.cos(lon) * 1.4, Math.sin(lat) * 5.5, cl * Math.sin(lon) * 1.4, 3);
+      const a = val > th ? Math.min(1, (val - th) * 5) : 0;
+      const idx = (j * W + i) * 4;
+      img.data[idx] = base[0]; img.data[idx+1] = base[1]; img.data[idx+2] = base[2];
+      img.data[idx+3] = a * 235;
+    }
+  }
+  x.putImageData(img, 0, 0);
+  const tex = new THREE.CanvasTexture(c);
+  _hazeCache.set(key, tex); return tex;
+}
+/* 大气壳环：中空径向渐变（厚度可见） */
+function atmRing(col, R, shellK, strength, smoggy) {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const x = c.getContext('2d');
+  const p = 1 / shellK / 2;
+  const g = x.createRadialGradient(128, 128, 0, 128, 128, 128);
+  const cs = a => `rgba(${col[0]},${col[1]},${col[2]},${a})`;
+  g.addColorStop(0, 'rgba(0,0,0,0)');
+  g.addColorStop(Math.max(0.01, p * 2 * 0.96), 'rgba(0,0,0,0)');
+  g.addColorStop(Math.min(0.99, p * 2 * 1.02), cs(strength));
+  g.addColorStop(Math.min(0.995, p * 2 + (1 - p * 2) * (smoggy ? 0.55 : 0.35)), cs(strength * 0.55));
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 256, 256);
+  const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true,
+    depthWrite: false, blending: smoggy ? THREE.NormalBlending : THREE.AdditiveBlending }));
+  sp.scale.setScalar(R * 2 * shellK);
+  sp.raycast = () => {};
+  return sp;
 }
 
 /* ---- 星体工厂 ---- */
 const stars = [];
 function makeStar(sd) {
   const group = new THREE.Group();
-  const spinner = new THREE.Group();       // 自转层（名牌不转）
-  group.add(spinner);
-  const st = { sd, group, spinner, body: null, outline: null, halo: null, name: null, spin: 0.12 + Math.random() * 0.15 };
+  const tiltG = new THREE.Group();         // 自转轴倾角（每颗星球不同的中轴）
+  tiltG.rotation.z = (Math.random() - 0.5) * 0.85;
+  tiltG.rotation.x = (Math.random() - 0.5) * 0.3;
+  group.add(tiltG);
+  const spinner = new THREE.Group();       // 自转层（绕自己的中轴转）
+  tiltG.add(spinner);
+  const face = new THREE.Group();          // 永远面向镜头的层（把手/锚点）
+  group.add(face);
+  const st = { sd, group, spinner, face, body: null, outline: null, deco: null, sats: [], halo: null, name: null, spin: 0.12 + Math.random() * 0.15 };
   group.position.set(timeX(TIME_LAST) + sd.xoff, 0, sd.lane);
   scene.add(group);
   stars.push(st);
@@ -1155,32 +1290,97 @@ function rebuildStar(st) {
   const ghost = !sd.loaded;
   const gs = (gsRaw || [null, null, null, null, null]).map(v => v ?? -55);
   const temp = starTemp(sd);
-  const base = 2.35 * sd.mkt;
+  const R = 2.7 * sd.mkt;                       // 星球半径
+  st.R = R;
   const t01 = (temp + 100) / 200;
-  const fat = Math.pow(t01, 1.5);   // 胖瘦差异格外放大：低温≈纸片，高温≈气球
-  [st.body, st.outline].forEach(m => { if (m) { st.spinner.remove(m); m.geometry.dispose(); } });
-  const geo = new THREE.ExtrudeGeometry(starShapeFromScores(gs, base, fat), {
-    depth: (0.08 + fat * 3.0) * sd.mkt,      // 中心厚度随胖瘦：纸片 ↔ 气球
-    bevelEnabled: true,
-    bevelThickness: (0.06 + fat * 0.95) * sd.mkt,
-    bevelSize: (0.05 + fat * 0.24) * sd.mkt,
-    bevelSegments: 8, curveSegments: 16, steps: 1,
-  });
-  geo.center();
-  // 星体底色 = 行业色（浅色系，避开红绿）；未加载 = 灰色幽灵星
-  const bodyCol = ghost
-    ? new THREE.Color('#6a6a78')
-    : new THREE.Color(CHAIN_COLOR[sd.chain] || '#ffd94e').lerp(tempColorHex(temp, 0.9, 0.55), 0.22);
-  st.body = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
-    color: bodyCol, roughness: 0.3, metalness: 0.05,            // 糖果釉面质感
-    emissive: bodyCol.clone().multiplyScalar(0.16),
-  }));
+  const heat = t01;
+  const fat = Math.pow(t01, 1.5);               // 变形程度：越泡沫越不圆
+  const dims = gs.map(D01);                     // [火山,海洋,大气,沙漠,植被]（五角顺序 = L1..L5）
+  const [dVol, dSea, dAtm, dDes, dFor] = dims;
+  [st.body, st.outline, st.deco].forEach(m => { if (m) { st.spinner.remove(m); m.geometry && m.geometry.dispose(); } });
+  st.sats.forEach(m => { scene.remove(m); const i = sparks.indexOf(m); if (i >= 0) sparks.splice(i, 1); });
+  st.sats = [];
+  st.deco = new THREE.Group();
+  // 球体：越热越变形（洼地=标准正圆）
+  const geo = new THREE.SphereGeometry(R, 40, 40);
+  if (!ghost && heat > 0.55) {
+    const defN = makeNoise3D(1000 + (sd.ticker.charCodeAt(0) || 65) * 7);
+    const p = geo.attributes.position, vv = new THREE.Vector3();
+    const irr = (heat - 0.55) / 0.45;
+    for (let i = 0; i < p.count; i++) {
+      vv.set(p.getX(i), p.getY(i), p.getZ(i));
+      const d = vv.length(); vv.normalize();
+      const n = defN(vv.x * 1.6, vv.y * 1.6, vv.z * 1.6, 3);
+      const disp = 1 + (n - 0.5) * 0.34 * irr;
+      p.setXYZ(i, vv.x * d * disp, vv.y * d * disp, vv.z * d * disp);
+    }
+    geo.computeVertexNormals();
+  }
+  const soil = SOIL_RGB[sd.chain] || [180, 160, 120];
+  st.body = new THREE.Mesh(geo, ghost
+    ? new THREE.MeshStandardMaterial({ color: '#6a6a78', roughness: 0.9 })
+    : new THREE.MeshStandardMaterial({
+        map: bioTexture(sd.chain, dSea, dDes, dFor, heat), roughness: 0.8,
+        emissive: new THREE.Color(soil[0]/255, soil[1]/255, soil[2]/255).multiplyScalar(0.10 + heat * 0.10),
+      }));
   st.body.castShadow = true;
   st.body.userData.star = st;
   st.spinner.add(st.body);
-  st.outline = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({ color: 0x14141c, side: THREE.BackSide }));
-  st.outline.scale.setScalar(1.045);
-  st.spinner.add(st.outline);
+  if (!ghost) {
+    // 云层（凉爽星球才有清爽白云）
+    if (heat < 0.5) {
+      st.clouds = new THREE.Mesh(new THREE.SphereGeometry(R * 1.035, 32, 32),
+        new THREE.MeshBasicMaterial({ map: cloudTexture(1 - heat), transparent: true, opacity: 0.8, depthWrite: false }));
+      st.clouds.raycast = () => {};
+      st.deco.add(st.clouds);
+    } else st.clouds = null;
+    // 雾霾流层（同行溢价高才起雾）
+    if (dAtm > 0.22) {
+      const smoggy = dAtm > 0.55 || heat > 0.7;
+      const haze = new THREE.Mesh(new THREE.SphereGeometry(R * (1.05 + dAtm * 0.09), 32, 32),
+        new THREE.MeshBasicMaterial({ map: hazeTexture(dAtm, smoggy), transparent: true, opacity: Math.min(0.9, 0.4 + dAtm * 0.55), depthWrite: false }));
+      haze.raycast = () => {};
+      st.deco.add(haze);
+    }
+    // 大气壳（厚度=同行溢价）
+    const smoggy2 = dAtm > 0.55 || heat > 0.7;
+    const atmCol = smoggy2 ? [205, 165, 96] : [Math.min(255, soil[0] + 50), Math.min(255, soil[1] + 70), 255];
+    st.deco.add(atmRing(atmCol, R, 1.14 + dAtm * 0.8, Math.min(0.95, 0.5 + dAtm * 0.5), smoggy2));
+    // 火山（数量与体量 = 绝对估值）
+    const nVol = Math.min(3, Math.max(0, Math.round(dVol * 3.4)));
+    for (let i = 0; i < nVol; i++) {
+      const lon = -1.1 + i * 0.85, latt = 0.6 - ((i * 2) % 4) * 0.35;
+      const dir = new THREE.Vector3(Math.cos(latt) * Math.sin(lon), Math.sin(latt), Math.cos(latt) * Math.cos(lon)).normalize();
+      const h = R * (0.15 + dVol * 0.16);
+      const cone = new THREE.Mesh(new THREE.ConeGeometry(R * 0.20, h, 8),
+        new THREE.MeshStandardMaterial({ color: 0x59372e, roughness: 0.95, flatShading: true }));
+      cone.position.copy(dir.clone().multiplyScalar(R * 0.97 + h * 0.45));
+      cone.quaternion.setFromUnitVectors(new THREE.Vector3(0, 1, 0), dir);
+      cone.raycast = () => {};
+      st.deco.add(cone);
+      const lava = new THREE.Mesh(new THREE.SphereGeometry(R * 0.05, 8, 8), new THREE.MeshBasicMaterial({ color: 0xff5a1e }));
+      lava.position.copy(dir.clone().multiplyScalar(R * 0.97 + h * 0.92));
+      lava.raycast = () => {};
+      st.deco.add(lava);
+      if (dVol > 0.6) {
+        const gl2 = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTexture('hsl(18 95% 55%)'), transparent: true, opacity: 0.55, depthWrite: false, blending: THREE.AdditiveBlending }));
+        gl2.scale.setScalar(R * (0.5 + dVol * 0.6));
+        gl2.position.copy(dir.clone().multiplyScalar(R * 0.97 + h));
+        st.deco.add(gl2);
+      }
+    }
+  }
+  st.spinner.add(st.deco);
+  // 危险卫星（红旗数量 = 卫星数量，环绕星球，可点击）
+  if (!ghost) (sd.flags || []).filter(f => f.lit).slice(0, 4).forEach((f, idx) => {
+    const moon = new THREE.Mesh(new THREE.IcosahedronGeometry(Math.max(0.3, R * 0.11), 0),
+      new THREE.MeshStandardMaterial({ color: 0xb0584a, roughness: 0.9, flatShading: true }));
+    const mGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTexture('hsl(6 80% 58%)'), transparent: true, opacity: 0.6, depthWrite: false }));
+    mGlow.scale.setScalar(2.0); moon.add(mGlow);
+    moon.userData.flag = f;
+    moon.userData.orbit = { center: st.group, r: R * 1.8 + idx * 0.7, speed: 0.30 + idx * 0.12, phase: idx * 2.2, tilt: 0.7 + idx * 0.5 };
+    scene.add(moon); sparks.push(moon); st.sats.push(moon);
+  });
   // 光晕
   if (st.halo) { st.group.remove(st.halo); st.halo.material.map.dispose(); st.halo.material.dispose(); }
   st.halo = new THREE.Sprite(new THREE.SpriteMaterial({
@@ -1193,8 +1393,7 @@ function rebuildStar(st) {
   if (st.name) { st.group.remove(st.name); st.name.material.map.dispose(); st.name.material.dispose(); }
   // 涨跌气泡（今日涨=绿 / 跌=红，透明度 20%）——半径包住最长的腿
   if (st.bubble) { st.group.remove(st.bubble); st.bubble.geometry.dispose(); st.bubble.material.dispose(); }
-  const maxTip = Math.max(...gs.map(TIPF));
-  const bubbleR = base * maxTip * 1.06 + 0.4;
+  const bubbleR = st.R * 1.95 + 0.4;   // 包住加厚的大气壳
   // 名牌挪到气泡外面（上方悬浮）
   st.name = new THREE.Sprite(new THREE.SpriteMaterial({ map: nameTexture(sd.ticker, ghost ? null : temp, (!ghost && priceOf(sd.ticker) != null) ? sd.chg : undefined), transparent: true, depthTest: false, opacity: ghost ? 0.55 : 1 }));
   st.name.scale.set(3.4 * Math.max(sd.mkt, 0.55), 1.9 * Math.max(sd.mkt, 0.55), 1);
@@ -1213,8 +1412,7 @@ function rebuildStar(st) {
   st.bubbleR = bubbleR;
   st.targetX = timeX(State.timeIdx) + sd.xoff;
   st.ownLift = 1.4 + Math.sign(temp) * Math.pow(Math.abs(temp) / 100, 0.7) * 10;   // 高估飞得高、低估贴云海，落差拉大
-  // 倾斜（立体感：让侧面吃到光）
-  st.group.rotation.x = -0.22;
+  st.group.rotation.x = -0.12;   // 微倾
 }
 GALAXY.forEach(sd => rebuildStar(makeStar(sd)));
 makeStarForNew = sd => { rebuildStar(makeStar(sd)); };   // 搜索加载的新星
@@ -1276,22 +1474,15 @@ function updateChainSprites() {
 /* ---- 焦点星的角热点 + 角标签 ---- */
 const tipAnchors = [], tipHits = [];
 function buildTips(st) {
-  tipHits.forEach(h => st0 => {});
   while (tipHits.length) { const h = tipHits.pop(); h.parent && h.parent.remove(h); }
   tipAnchors.length = 0;
-  const base = 2.35 * st.sd.mkt;
-  const gs = (getScores(st.sd) || [null, null, null, null, null]).map(v => v ?? -55);
-  const temp = starTemp(st.sd);
-  const fat = Math.pow((temp + 100) / 200, 1.5);
-  // 星体轮廓外缘：胖星的内圈+鼓边可能比短角还长，把手必须放在两者较大值之外
-  const bodyEdge = (0.30 + 0.52 * fat) * (1 + 0.55 * fat);
+  const R = st.R || 2.7 * st.sd.mkt;
+  const r = R * 1.55;
   for (let i = 0; i < 5; i++) {
-    const r = base * Math.max(TIPF(gs[i]) + 0.12, bodyEdge + 0.22);
     const a = -Math.PI / 2 + i * (Math.PI * 2 / 5);
     const anchor = new THREE.Object3D();
     anchor.position.set(Math.cos(a) * (r + 0.8), Math.sin(a) * (r + 0.8), 0);
-    st.spinner.add(anchor); tipAnchors.push(anchor);
-    // 点击把手：一闪一闪的发光小白点
+    st.face.add(anchor); tipAnchors.push(anchor);
     const knob = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.28, 0.36 * st.sd.mkt), 16, 12),
       new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true }));
     const kGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTexture('hsl(0 0% 100%)'), transparent: true, opacity: 0.9, depthWrite: false }));
@@ -1299,24 +1490,13 @@ function buildTips(st) {
     knob.userData.glow = kGlow;
     knob.position.set(Math.cos(a) * r, Math.sin(a) * r, 0);
     knob.userData.layer = i;
-    st.spinner.add(knob); tipHits.push(knob);
+    st.face.add(knob); tipHits.push(knob);
   }
 }
 
 /* ---- 环绕火花（跟随焦点星，红旗由 EDGAR 数据自动检测）---- */
 const sparks = [];
-function rebuildSparks() {
-  while (sparks.length) scene.remove(sparks.pop());
-  const st = State.focus; if (!st) return;
-  (st.sd.flags || []).filter(f => f.lit).forEach((f, idx) => {
-    const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.34), new THREE.MeshBasicMaterial({ color: 0xd03b3b }));
-    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTexture('hsl(2 70% 55%)'), transparent: true, opacity: 0.8, depthWrite: false }));
-    glow.scale.setScalar(1.8); m.add(glow);
-    m.userData.flag = f;
-    m.userData.orbit = { center: st.group, r: 7.4 + idx * 0.6, speed: 0.5 + idx * 0.17, phase: idx * 2.2, tilt: 0.7 + idx * 0.5 };
-    scene.add(m); sparks.push(m);
-  });
-}
+function rebuildSparks() { /* 危险卫星随星球在 rebuildStar 中构建 */ }
 
 /* ---- 云海 ---- */
 /* 梦幻粉彩云海（固定舞台，高度不随时间变）：粉/蓝/紫/奶油渐变顶点色 + 柔和光影 */
@@ -1621,9 +1801,9 @@ function loop() {
   const dt = Math.min(t - prevT, 0.1); prevT = t;
   const mNow = macroNow();
   stars.forEach(st => {
-    st.group.quaternion.copy(camera.quaternion);                 // 星面始终朝向镜头，任何视角轮廓可读
-    st.spinner.rotation.z = t * st.spin * 0.55;                  // 持续自转：风车式面内旋转
-    st.spinner.rotation.y = Math.sin(t * st.spin * 1.6) * 0.42;  // 轻微 3D 摇摆，露出厚度
+    st.spinner.rotation.y = t * st.spin * 0.45;                  // 星球自转
+    if (st.clouds) st.clouds.rotation.y = t * st.spin * 0.18;    // 云层慢速错动
+    st.face.quaternion.copy(camera.quaternion);                  // 把手环始终面向镜头
     // 沿地势行走：横向平滑走向目标位置，高度取脚下云面
     const g = st.group;
     g.position.x += (st.targetX - g.position.x) * Math.min(1, dt * 2.6);   // 帧率无关的行进速度
