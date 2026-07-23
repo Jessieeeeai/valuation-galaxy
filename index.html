@@ -853,7 +853,34 @@ async function fmpGet(urls) {
   }
   throw new Error(last || '请求失败');
 }
-async function fmpLoadQuotes() {
+const LS = { KEY: 'vg_fmpKey', Q: 'vg_quotes', H: 'vg_hist' };
+function persistPrices() {
+  try {
+    localStorage.setItem(LS.KEY, State.fmpKey || '');
+    localStorage.setItem(LS.Q, JSON.stringify({ t: Date.now(), live: PRICE.live }));
+    localStorage.setItem(LS.H, JSON.stringify(PRICE.history));
+  } catch (e) {}
+}
+function restorePrices() {
+  try {
+    const k = localStorage.getItem(LS.KEY); if (k) State.fmpKey = k;
+    const q = JSON.parse(localStorage.getItem(LS.Q) || 'null');
+    if (q && Date.now() - q.t < 12 * 3600 * 1000) {
+      Object.assign(PRICE.live, q.live);
+      Object.entries(q.live).forEach(([tk, v]) => { const sd = GALAXY.find(x => x.ticker === tk); if (sd) sd.chg = v.chg || 0; });
+      Object.assign(PRICE.history, JSON.parse(localStorage.getItem(LS.H) || '{}'));
+      return true;   // 12 小时内有缓存：不再重拉，省额度
+    }
+  } catch (e) {}
+  return false;
+}
+async function fmpLoadQuotes(force) {
+  if (!force && restorePrices() && Object.keys(PRICE.live).length > 10) {
+    GALAXY.filter(x => x.loaded).forEach(x => { Hub.scoreCompany(x.ticker); Hub.recomputeSector(x.chain); });
+    refreshHUD(); rebuildAll(); UIStatus.update();
+    fmpNote('✓ 使用 12 小时内的价格缓存（' + Object.keys(PRICE.live).length + ' 家），未消耗额度');
+    return;
+  }
   if (!State.fmpKey) return;
   const K = State.fmpKey;
   fmpNote('正在验证 key…');
@@ -868,6 +895,7 @@ async function fmpLoadQuotes() {
     try { await fmpGet([`https://financialmodelingprep.com/stable/quote?symbol=NVDA&apikey=${K}`]); }
     catch (e) { fmpNote('✗ key 无效或额度用尽：' + e.message); return; }
     list = [];
+    let failStreak = 0;
     const tks = GALAXY.filter(s => s.loaded).map(s => s.ticker);
     for (let i = 0; i < tks.length; i++) {
       fmpNote(`拉取现价 ${i + 1}/${tks.length}…`);
@@ -875,7 +903,8 @@ async function fmpLoadQuotes() {
         const j = await fmpGet([`https://financialmodelingprep.com/stable/quote?symbol=${tks[i]}&apikey=${K}`]);
         const q = Array.isArray(j) ? j[0] : j;
         if (q && q.price != null) list.push({ symbol: tks[i], price: q.price, changesPercentage: q.changePercentage ?? q.changesPercentage ?? 0 });
-      } catch (e) { /* 单只失败跳过 */ }
+        failStreak = 0;
+      } catch (e) { if (++failStreak >= 5) { fmpNote(`已拉取 ${list.length} 家后连续失败——免费额度(250次/天)可能用尽，明天自动恢复；已拉到的价格会缓存 12 小时`); break; } }
       await new Promise(r => setTimeout(r, 120));
     }
   }
@@ -886,7 +915,8 @@ async function fmpLoadQuotes() {
   });
   GALAXY.filter(s => s.loaded).forEach(s => { Hub.scoreCompany(s.ticker); Hub.recomputeSector(s.chain); });
   refreshHUD(); rebuildAll(); UIStatus.update();
-  fmpNote(`✓ 已拉取 ${list.length} 家现价，价格相关估值角已激活`);
+  persistPrices();
+  fmpNote(`✓ 已拉取 ${list.length} 家现价（已缓存 12 小时，刷新不再消耗额度）`);
 }
 async function fmpLoadHistory(ticker) {
   if (!State.fmpKey || PRICE.history[ticker]) return;
@@ -901,6 +931,7 @@ async function fmpLoadHistory(ticker) {
       (Array.isArray(j) ? j : (j.historical || [])).forEach(d => { hist[Hub.qKeyOf(d.date)] = d.price ?? d.close; });
     }
     PRICE.history[ticker] = hist;
+    persistPrices();
     Hub.scoreCompany(ticker); Hub.recomputeSector(GALAXY.find(s => s.ticker === ticker).chain);
     refreshHUD(); rebuildAll();
   } catch (e) { /* 静默 */ }
@@ -2100,7 +2131,7 @@ function panelSettings() {
 function saveFmpKey() {
   State.fmpKey = document.getElementById('fmpKey').value.trim();
   document.getElementById('fmpNote').textContent = State.fmpKey ? '拉取中…' : '已清除';
-  if (State.fmpKey) { fmpLoadQuotes(); GALAXY.filter(s => s.loaded).slice(0, 20).forEach(s => fmpLoadHistory(s.ticker)); retryFailed(); }
+  if (State.fmpKey) { fmpLoadQuotes(true); GALAXY.filter(s => s.loaded).slice(0, 20).forEach(s => fmpLoadHistory(s.ticker)); retryFailed(); }
 }
 function saveManualPrice() {
   const f = F(); if (!f) return;
@@ -2447,9 +2478,11 @@ document.getElementById('searchBtn').addEventListener('click', () => {
 });
 
 /* ---- 启动 ---- */
+restorePrices();
 setFocusHUD();
 UIStatus.init();
 bootLoad();
+if (State.fmpKey) setTimeout(() => fmpLoadQuotes(false), 4000);
 </script>
 </body>
 </html>
