@@ -225,7 +225,7 @@
 </div>
 
 <div class="legend" id="legendText">
-  <b>怎么读:</b> 大陆土色=行业 · <b>🌋火山</b>=绝对估值 <b>🌊海面</b>=历史分位 <b>🌫雾霾</b>=同行溢价 <b>🏜沙漠</b>=质量恶化 <b>🌴丛林</b>=行业周期 · 越泡沫越<b>变形发烫转得快</b> · <b>锈红卫星</b>=红旗 · 名牌数字=<b>估值温度</b>(非涨跌) · 光晕 <b style="color:#9fe08a">绿=洼地</b>/<b style="color:#ff9a7a">红=泡沫</b> · 气泡=今日涨跌 · 云海横轴=时间</div>
+  <b>怎么读:</b> 大陆土色=行业 · <b>🌋火山</b>=绝对估值 <b>🌊海面</b>=历史分位 <b>🌫雾霾</b>=同行溢价 <b>🏜沙漠</b>=质量恶化 <b>🌴丛林</b>=行业周期 · 越泡沫越<b>变形发烫转得快</b> · <b>警报卫星</b>=风险信号(悬停看人话解释) · 名牌数字=<b>估值温度</b>(非涨跌) · 光晕 <b style="color:#9fe08a">绿=洼地</b>/<b style="color:#ff9a7a">红=泡沫</b> · 气泡=今日涨跌 · 云海横轴=时间</div>
 
 <!-- 顶部中央：搜索栏 + 小地图 -->
 <div id="topbar" style="position:fixed; top:14px; left:46%; transform:translateX(-50%); z-index:12; display:flex; flex-direction:row; align-items:flex-start; gap:10px;">
@@ -374,7 +374,7 @@ function toggleLang() {
   if (typeof rebuildAll === 'function') rebuildAll();
 }
 const LAYERS = ['绝对估值', '历史分位', '同行相对', '质量(反)', '行业周期'];
-const PRESETS = { '均衡': [30,15,20,15,20], '价值派': [45,20,15,15,5], '成长派': [25,5,20,35,15], '周期警惕': [20,10,10,15,45] };
+const PRESETS = { '均衡': [30,15,20,15,20], '捡便宜': [45,20,15,15,5], '赌成长': [25,5,20,35,15], '防崩盘': [20,10,10,15,45] };
 
 /* ---- 星系条目 ---- */
 const GALAXY = UNIVERSE.map(([t, n, c, cik]) => ({
@@ -1067,7 +1067,7 @@ const UIStatus = {
     if (!this.el) return;
     const done = GALAXY.filter(s => s.loaded).length;
     const failedList = GALAXY.filter(s => s.status.startsWith('✗'));
-    this.el.innerHTML = `EDGAR 已加载 ${done}/${GALAXY.length}` +
+    this.el.innerHTML = `已就绪 ${done}/${GALAXY.length} 家公司` +
       (failedList.length ? ` · 失败 ${failedList.length} <span style="color:var(--series-1);cursor:pointer;pointer-events:auto" onclick="retryFailed()">重试</span>` : '');
     if (failedList.length && this.noteEl) this.noteEl.textContent = '最近错误 ' + failedList[failedList.length - 1].ticker + ': ' + failedList[failedList.length - 1].status.slice(2, 80);
   },
@@ -1209,7 +1209,9 @@ function nameTexture(ticker, temp, chg) {
   x.font = '800 100px system-ui, sans-serif';
   x.lineWidth = 14; x.strokeStyle = 'rgba(10,10,16,.9)'; x.strokeText(ticker, 256, 104);
   x.fillStyle = '#ffffff'; x.fillText(ticker, 256, 104);
-  const tt = temp == null ? (State.lang === 'zh' ? '加载中…' : 'loading…') : (State.lang === 'zh' ? '估值 ' : 'Val ') + (temp > 0 ? '+' : '') + temp;
+  const tierZh = t => t <= -25 ? '便宜' : t < 25 ? '合理' : t < 60 ? '偏贵' : '泡沫';
+  const tierEn = t => t <= -25 ? 'Cheap' : t < 25 ? 'Fair' : t < 60 ? 'Pricey' : 'Bubble';
+  const tt = temp == null ? (State.lang === 'zh' ? '加载中…' : 'loading…') : (State.lang === 'zh' ? tierZh(temp) : tierEn(temp)) + ' ' + (temp > 0 ? '+' : '') + temp;
   x.font = '700 58px system-ui, sans-serif';
   x.lineWidth = 10; x.strokeText(tt, 256, 178);
   x.fillStyle = temp == null ? '#9a9aa8' : tempColorCSS(temp, 90, 62); x.fillText(tt, 256, 178);
@@ -1849,7 +1851,7 @@ function hoverCheck(e) {
     const f = hitSpark.object.userData.flag;
     tooltip.style.display = 'block';
     tooltip.style.left = (e.clientX + 14) + 'px'; tooltip.style.top = (e.clientY + 10) + 'px';
-    tooltip.innerHTML = `<b>⚠ 红旗 · ${f.name}</b>${f.ev}`;
+    tooltip.innerHTML = `<b>⚠ 警报 · ${f.name}</b>${f.ev}`;
     canvas.style.cursor = 'pointer'; return;
   }
   tooltip.style.display = 'none';
@@ -2086,6 +2088,13 @@ function rawBox(title, rows, note) {
     <div class="rn">${note || '全部数值来自 SEC EDGAR XBRL 实时拉取，蓝色行为工具推导值'}</div></div>`;
 }
 
+function panelConclusion(layer) {
+  const f = typeof F === 'function' ? F() : null; if (!f || !f.sd.loaded) return '';
+  const sc = (getScores(f.sd) || [])[layer]; if (sc == null) return '';
+  const tier = sc <= -25 ? '便宜' : sc < 25 ? '合理' : sc < 60 ? '偏贵' : '危险';
+  const names = ['现在的股价透支了多少未来', '跟它自己的历史比贵不贵', '跟同行比贵不贵', '赚钱质量有没有在变差', '整个行业是不是过热'];
+  return `<div style="margin:2px 0 10px;padding:8px 12px;border-radius:10px;background:rgba(255,255,255,.05);border:1px solid var(--border);font-size:13px">一句话：<b>${f.sd.ticker}</b> 在「${names[layer] || ''}」这一角上得分 <b>${sc > 0 ? '+' : ''}${sc}</b>，属于<b>${tier}</b>区间（-100 最便宜 ↔ +100 最贵）。下面是完整推导，想深挖再看。</div>`;
+}
 function openPanel(i) {
   const f = F();
   if (i <= 4 && (!f || !f.sd.loaded)) return unloadedPanel();
@@ -2098,6 +2107,7 @@ function openPanel(i) {
   if (i === 6) return panelMacro();
   if (i === 7) return panelGlossary();
   if (i === 8) return panelSettings();
+  if (i >= 0 && i <= 4) { const pb = document.querySelector('#panel .note, #panel .derive'); const host = document.querySelector('#panel h2, #panel .paneltitle') || document.querySelector('#panel'); const div = document.createElement('div'); div.innerHTML = panelConclusion(i); if (host && host.parentNode) host.parentNode.insertBefore(div, host.nextSibling); }
 }
 function unloadedPanel() {
   const sd = State.focus?.sd;
@@ -2170,7 +2180,7 @@ const GLOSSARY = [
     ['周期敏感度', '公司营收对行业周期的暴露程度，同样的周期位置不同体质感受不同。'],
   ]],
   ['云海 · 宏观', [
-    ['流动性水位', '实际利率（反）+ NFCI（反）+ 联储资产负债表方向合成，0-100。'],
+    ['资金潮水位', '实际利率（反）+ NFCI（反）+ 联储资产负债表方向合成，0-100。'],
     ['NFCI', '芝加哥联储金融条件指数，>0 = 偏紧。'],
     ['高收益债利差', '信用市场的恐惧温度计，明斯基时刻的前哨。'],
   ]],
@@ -2414,11 +2424,11 @@ function panelMacro() {
     `<canvas id="cm1"></canvas>
      <div class="ilnote"><b>是什么：</b>名义国债利率减通胀预期。<b>为什么看它：</b>所有长久期资产的"重力"，直接进入角1 折现率。</div>
      <canvas id="cm2"></canvas>
-     <div class="ilnote"><b>是什么：</b>芝加哥联储金融条件指数，>0 偏紧。<b>为什么看它：</b>"钱紧不紧"的权威合成指数，计入流动性水位。</div>
+     <div class="ilnote"><b>是什么：</b>芝加哥联储金融条件指数，>0 偏紧。<b>为什么看它：</b>"钱紧不紧"的权威合成指数，计入资金潮水位。</div>
      <canvas id="cm3"></canvas>
      <div class="ilnote"><b>是什么：</b>垃圾债与国债的利差。<b>为什么看它：</b>信用市场恐惧温度计，明斯基前哨；驱动云色。</div>
      <div class="derive"><h4>当前（${TIMELINE[State.timeIdx]}）</h4>
-     <ol><li>流动性水位 <b>${macroNow().liq}/100</b>（云海地形高度）</li>
+     <ol><li>资金潮水位 <b>${macroNow().liq}/100</b>（云海地形高度）</li>
      <li>实际利率 <b>${macroNow().realRate}%</b> → 角1 折现率 = 4.5% + 实际利率 + ERP 5%</li>
      <li>信用压力 <b>${Math.round(macroNow().stress * 100)}%</b>（云色）</li></ol></div>`);
   const spark = (id, series, name, col, unit) => {
@@ -2446,7 +2456,7 @@ const timeLab = document.getElementById('timeLab');
 function refreshTimeLab() {
   const m = MACRO_HIST;
   timeLab.innerHTML = '财报期：' + TIMELINE[State.timeIdx] +
-    `<br>流动性水位 <b style="color:var(--text-primary)">${m.liquidity[State.timeIdx]}/100</b> · 信用压力 <b style="color:var(--text-primary)">${Math.round(m.stress[State.timeIdx]*100)}%</b>`;
+    `<br>资金潮水位 <b style="color:var(--text-primary)">${m.liquidity[State.timeIdx]}/100</b> · 信用压力 <b style="color:var(--text-primary)">${Math.round(m.stress[State.timeIdx]*100)}%</b>`;
 }
 timeSlider.addEventListener('input', () => {
   State.timeIdx = +timeSlider.value;
@@ -2478,6 +2488,18 @@ document.getElementById('searchBtn').addEventListener('click', () => {
 });
 
 /* ---- 启动 ---- */
+(function onboard() {
+  try { if (localStorage.getItem('vg_onboard')) return; } catch (e) {}
+  const d = document.createElement('div');
+  d.style.cssText = 'position:fixed;inset:0;z-index:99;background:rgba(8,8,18,.78);display:flex;align-items:center;justify-content:center;backdrop-filter:blur(4px)';
+  d.innerHTML = `<div style="max-width:420px;background:#16142a;border:1px solid rgba(255,255,255,.14);border-radius:16px;padding:26px 28px;color:#e8e6f5;font-size:15px;line-height:2">
+    <div style="font-size:19px;font-weight:800;margin-bottom:10px">30 秒看懂这个星系</div>
+    ① <b>看颜色</b>：光晕<b style="color:#9fe08a">绿=便宜</b>，<b style="color:#ff9a7a">红=泡沫</b>；星球越大市值越大<br>
+    ② <b>点一颗星球</b>：聚焦后看它的五种地貌（火山/海面/雾霾/沙漠/丛林 = 五个估值角度）<br>
+    ③ <b>点它周围的白点</b>：看这一角是怎么算出来的，全程有人话解释<br>
+    <button onclick="try{localStorage.setItem('vg_onboard','1')}catch(e){};this.closest('div').parentNode.remove()" style="margin-top:14px;width:100%;padding:10px;border-radius:10px;border:none;background:#3b82f6;color:#fff;font-size:15px;cursor:pointer">开始探索</button></div>`;
+  document.body.appendChild(d);
+})();
 restorePrices();
 setFocusHUD();
 UIStatus.init();
