@@ -897,21 +897,17 @@ const CHAIN_COLOR = {
   '消费': '#cfc09a', '能源工业': '#a8846a', '通信': '#d0765a', '自选': '#e5ddca',
 };
 function layoutGalaxy() {
-  const D = sd => {
-    const sc = sd.scores || [0, 0, 0, 0, 0];
-    const maxTip = 0.25 + 2.10 * (Math.max(...sc.map(v => v ?? 0)) + 100) / 200;
-    return 2 * (2.35 * sd.mkt * maxTip * 1.06 + 0.4);
-  };
+  const D = sd => 2 * 2.7 * sd.mkt + 0.8;   // 星球直径（生态星球版：半径 R = 2.7 × mkt）
   const n = SECTOR_ORDER.length;
   const byChain = {};
   GALAXY.forEach(sd => { (byChain[sd.chain] = byChain[sd.chain] || []).push(sd); });
   SECTOR_ORDER.forEach((ch, ci) => {
     const members = byChain[ch] || [];
-    const cx = (ci - (n - 1) / 2) * 26;
+    const cx = (ci - (n - 1) / 2) * 36;   // 星系间距随星球尺寸放大
     const cz = (ci % 2 ? -16 : 12) + (ci % 3) * 4;
     let r = 0;
     members.forEach((sd, i) => {
-      if (i > 0) r += (D(members[i - 1]) + D(sd)) * 0.28;
+      if (i > 0) r += D(members[i - 1]) + D(sd);   // 星距 = 相邻两星直径之和
       const a = i * 2.4;
       sd.xoff = cx + Math.cos(a) * r;
       sd.lane = cz + Math.sin(a) * r * 0.95;
