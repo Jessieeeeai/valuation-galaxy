@@ -616,9 +616,10 @@ const Hub = {
   async loadCompanyFMP(ticker) {
     const sd = GALAXY.find(s => s.ticker === ticker);
     const get = async ep => {
-      const r = await fetch(`https://financialmodelingprep.com/api/v3/${ep}/${ticker}?period=quarter&limit=44&apikey=${State.fmpKey}`);
-      if (!r.ok) throw new Error('FMP HTTP ' + r.status);
-      const j = await r.json();
+      const j = await fmpGet([
+        `https://financialmodelingprep.com/api/v3/${ep}/${ticker}?period=quarter&limit=44&apikey=${State.fmpKey}`,
+        `https://financialmodelingprep.com/stable/${ep}?symbol=${ticker}&period=quarter&limit=44&apikey=${State.fmpKey}`,
+      ]);
       if (!Array.isArray(j) || !j.length) throw new Error('FMP 无该公司数据');
       return j;
     };
@@ -835,28 +836,70 @@ function priceOf(ticker, ti = State.timeIdx, forSeries = false) {
 }
 function macroAt(ti) { const i = MACRO_OFF + ti; return { realRate: MACRO.realRate[i], hy: MACRO.hySpread[i], nfci: MACRO.nfci[i], liq: MACRO.liquidity[i] }; }
 
+function fmpNote(msg) {
+  const el = document.getElementById('fmpNote'); if (el) el.textContent = msg;
+  UIStatus.note(msg);
+}
+/* 新注册的 FMP key 只能用 stable 接口，老 key 用 v3——两个都试 */
+async function fmpGet(urls) {
+  let last = '';
+  for (const u of urls) {
+    try {
+      const r = await fetch(u);
+      const j = await r.json();
+      if (r.ok && j && !(j['Error Message'] || j.message)) return j;
+      last = 'HTTP ' + r.status + ' ' + ((j && (j['Error Message'] || j.message)) || '');
+    } catch (e) { last = e.message; }
+  }
+  throw new Error(last || '请求失败');
+}
 async function fmpLoadQuotes() {
   if (!State.fmpKey) return;
-  const tk = GALAXY.map(s => s.ticker).join(',');
+  const K = State.fmpKey;
+  fmpNote('正在验证 key…');
+  let list = null;
+  // 先试 v3 批量（老 key 一次拿全）
   try {
-    const r = await fetch(`https://financialmodelingprep.com/api/v3/quote/${tk}?apikey=${State.fmpKey}`);
-    const j = await r.json();
-    if (Array.isArray(j)) j.forEach(q => {
-      PRICE.live[q.symbol] = { p: q.price, chg: q.changesPercentage };
-      const sd = GALAXY.find(s => s.ticker === q.symbol);
-      if (sd) sd.chg = q.changesPercentage || 0;
-    });
-    GALAXY.filter(s => s.loaded).forEach(s => { Hub.scoreCompany(s.ticker); Hub.recomputeSector(s.chain); });
-    refreshHUD(); rebuildAll(); UIStatus.update();
-  } catch (e) { UIStatus.note('FMP 行情拉取失败：' + e.message); }
+    const j = await fmpGet([`https://financialmodelingprep.com/api/v3/quote/${GALAXY.map(s => s.ticker).join(',')}?apikey=${K}`]);
+    if (Array.isArray(j) && j.length) list = j;
+  } catch (e) { /* 新 key 走下面逐只 stable */ }
+  if (!list) {
+    // stable 逐只拉（新 key）：先验证一只，失败立即报错
+    try { await fmpGet([`https://financialmodelingprep.com/stable/quote?symbol=NVDA&apikey=${K}`]); }
+    catch (e) { fmpNote('✗ key 无效或额度用尽：' + e.message); return; }
+    list = [];
+    const tks = GALAXY.filter(s => s.loaded).map(s => s.ticker);
+    for (let i = 0; i < tks.length; i++) {
+      fmpNote(`拉取现价 ${i + 1}/${tks.length}…`);
+      try {
+        const j = await fmpGet([`https://financialmodelingprep.com/stable/quote?symbol=${tks[i]}&apikey=${K}`]);
+        const q = Array.isArray(j) ? j[0] : j;
+        if (q && q.price != null) list.push({ symbol: tks[i], price: q.price, changesPercentage: q.changePercentage ?? q.changesPercentage ?? 0 });
+      } catch (e) { /* 单只失败跳过 */ }
+      await new Promise(r => setTimeout(r, 120));
+    }
+  }
+  list.forEach(q => {
+    PRICE.live[q.symbol] = { p: q.price, chg: q.changesPercentage };
+    const sd = GALAXY.find(s => s.ticker === q.symbol);
+    if (sd) sd.chg = q.changesPercentage || 0;
+  });
+  GALAXY.filter(s => s.loaded).forEach(s => { Hub.scoreCompany(s.ticker); Hub.recomputeSector(s.chain); });
+  refreshHUD(); rebuildAll(); UIStatus.update();
+  fmpNote(`✓ 已拉取 ${list.length} 家现价，价格相关估值角已激活`);
 }
 async function fmpLoadHistory(ticker) {
   if (!State.fmpKey || PRICE.history[ticker]) return;
   try {
-    const r = await fetch(`https://financialmodelingprep.com/api/v3/historical-price-full/${ticker}?serietype=line&timeseries=1400&apikey=${State.fmpKey}`);
-    const j = await r.json();
-    const hist = {};
-    (j.historical || []).forEach(d => { hist[Hub.qKeyOf(d.date)] = d.close; });   // 每季保留最新交易日
+    const K = State.fmpKey;
+    let hist = {};
+    try {
+      const j = await fmpGet([`https://financialmodelingprep.com/api/v3/historical-price-full/${ticker}?serietype=line&timeseries=1400&apikey=${K}`]);
+      (j.historical || []).forEach(d => { hist[Hub.qKeyOf(d.date)] = d.close; });
+    } catch (e) {
+      const j = await fmpGet([`https://financialmodelingprep.com/stable/historical-price-eod/light?symbol=${ticker}&apikey=${K}`]);
+      (Array.isArray(j) ? j : (j.historical || [])).forEach(d => { hist[Hub.qKeyOf(d.date)] = d.price ?? d.close; });
+    }
     PRICE.history[ticker] = hist;
     Hub.scoreCompany(ticker); Hub.recomputeSector(GALAXY.find(s => s.ticker === ticker).chain);
     refreshHUD(); rebuildAll();
