@@ -223,10 +223,10 @@
 </div>
 
 <div class="legend">
-  <b>怎么读: <b>大陆土色=行业</b> · 每颗星球五种地貌=五个估值维度: <b>🌋火山</b>=绝对估值过热 · <b>🌊海平面</b>=历史分位水位 · <b>🌫大气雾霾</b>=同行溢价 · <b>🏜沙漠化</b>=质量恶化 · <b>🌴丛林疯长</b>=行业周期过热 · <b>越泡沫越变形发烫，越洼地越正圆山清水秀</b> · <b>锈红卫星</b>=红旗(悬停看证据) · <b>光晕</b> 黄绿=洼地/黄红=泡沫 · <b>气泡</b> 绿=今日涨/红=今日跌 · <b>云海=时间轴地形图</b>: 横轴是时间，地形高度是各期流动性曲线；拖时间滑块星球舰队沿轴行进，点云海下钻</div>
+  <b>怎么读: <b>大陆土色=行业</b> · 每颗星球五种地貌=五个估值维度: <b>🌋火山</b>=绝对估值过热 · <b>🌊海平面</b>=历史分位水位 · <b>🌫大气雾霾</b>=同行溢价 · <b>🏜沙漠化</b>=质量恶化 · <b>🌴丛林疯长</b>=行业周期过热 · <b>越泡沫越变形发烫、自转越焦躁，越洼地越正圆山清水秀、自转越从容</b> · <b>锈红卫星</b>=红旗(悬停看证据) · <b>光晕</b> 黄绿=洼地/黄红=泡沫 · <b>气泡</b> 绿=今日涨/红=今日跌 · <b>云海=时间轴地形图</b>: 横轴是时间，地形高度是各期流动性曲线；拖时间滑块星球舰队沿轴行进，点云海下钻</div>
 
 <!-- 顶部中央：搜索栏 + 小地图 -->
-<div id="topbar" style="position:fixed; top:14px; left:50%; transform:translateX(-50%); z-index:12; display:flex; flex-direction:column; align-items:center; gap:8px;">
+<div id="topbar" style="position:fixed; top:14px; left:46%; transform:translateX(-50%); z-index:12; display:flex; flex-direction:row; align-items:flex-start; gap:10px;">
   <div style="display:flex; gap:6px;">
     <input id="searchTicker" placeholder="输入任意美股 ticker，回车加载" style="width:230px; background:var(--panel-bg); border:1px solid var(--border); border-radius:99px; color:#fff; font-size:13px; padding:7px 16px; backdrop-filter:blur(8px);">
     <button id="searchBtn" style="padding:6px 16px; border-radius:99px; border:1px solid var(--border); background:var(--panel-bg); color:var(--text-secondary); font-size:13px; cursor:pointer;">搜索加载</button>
@@ -903,11 +903,11 @@ function layoutGalaxy() {
   GALAXY.forEach(sd => { (byChain[sd.chain] = byChain[sd.chain] || []).push(sd); });
   SECTOR_ORDER.forEach((ch, ci) => {
     const members = byChain[ch] || [];
-    const cx = (ci - (n - 1) / 2) * 36;   // 星系间距随星球尺寸放大
-    const cz = (ci % 2 ? -16 : 12) + (ci % 3) * 4;
+    const cx = (ci - (n - 1) / 2) * 52;   // 星系与星系之间大幅拉开
+    const cz = (ci % 2 ? -26 : 18) + (ci % 3) * 6;   // 前后错位也拉大，避免相邻星系混叠
     let r = 0;
     members.forEach((sd, i) => {
-      if (i > 0) r += D(members[i - 1]) + D(sd);   // 星距 = 相邻两星直径之和
+      if (i > 0) r += (D(members[i - 1]) + D(sd)) * 0.55;   // 簇内：距离≈直径之和的一半多，抱团不重叠
       const a = i * 2.4;
       sd.xoff = cx + Math.cos(a) * r;
       sd.lane = cz + Math.sin(a) * r * 0.95;
@@ -1409,6 +1409,7 @@ function rebuildStar(st) {
   st.targetX = timeX(State.timeIdx) + sd.xoff;
   st.ownLift = 1.4 + Math.sign(temp) * Math.pow(Math.abs(temp) / 100, 0.7) * 10;   // 高估飞得高、低估贴云海，落差拉大
   st.group.rotation.x = -0.12;   // 微倾
+  st.spinSpeed = 0.10 + heat * 0.85;   // 自转速度=估值温度：越泡沫转得越焦躁，洼地慢而从容
 }
 GALAXY.forEach(sd => rebuildStar(makeStar(sd)));
 makeStarForNew = sd => { rebuildStar(makeStar(sd)); };   // 搜索加载的新星
@@ -1436,12 +1437,17 @@ const chainSprites = [];
   const chains = {};
   GALAXY.forEach(sd => { (chains[sd.chain] = chains[sd.chain] || []).push(sd); });
   Object.entries(chains).forEach(([name, members]) => {
-    const c = document.createElement('canvas'); c.width = 512; c.height = 96;
+    const c = document.createElement('canvas'); c.width = 512; c.height = 128;
     const x = c.getContext('2d');
-    x.textAlign = 'center'; x.font = '500 40px system-ui, sans-serif';
-    x.fillStyle = 'rgba(210,208,230,.8)'; x.fillText(name, 256, 60);
-    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
-    sp.scale.set(5.4, 1.05, 1);
+    const col = CHAIN_COLOR[name] || '#fff';
+    // 行业色圆角胶囊底 + 深色粗字，一眼认出星系
+    const tw = Math.min(480, 64 + name.length * 52);
+    x.fillStyle = col;
+    x.beginPath(); x.roundRect ? x.roundRect(256 - tw / 2, 14, tw, 84, 42) : x.rect(256 - tw / 2, 14, tw, 84); x.fill();
+    x.textAlign = 'center'; x.font = '800 52px system-ui, sans-serif';
+    x.fillStyle = 'rgba(18,16,30,.92)'; x.fillText(name, 256, 72);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false, depthTest: false, opacity: 0.95 }));
+    sp.scale.set(9.5, 2.4, 1);
     sp.userData.lane = members[0].lane;
     sp.userData.xoff = members.reduce((a, s) => a + s.xoff, 0) / members.length;
     scene.add(sp); chainSprites.push(sp);
@@ -1451,7 +1457,7 @@ function updateChainSprites() {
   const fx = timeX(State.timeIdx);
   const groundY = -5.4 + terrainH(fx);
   chainSprites.forEach(sp => {
-    sp.position.set(fx + sp.userData.xoff, groundY + 14, sp.userData.lane);
+    sp.position.set(fx + sp.userData.xoff, groundY + 20, sp.userData.lane);
   });
 }
 (() => {   // 年份刻度
@@ -1762,6 +1768,12 @@ function drawMinimap() {
     px === 0 ? c.moveTo(px, y) : c.lineTo(px, y);
   }
   c.stroke(); c.lineWidth = 1;
+  // 年份刻度
+  c.fillStyle = 'rgba(190,195,225,.85)'; c.font = '600 17px system-ui'; c.textAlign = 'center';
+  [[0, '2023'], [4, '2024'], [8, '2025'], [11, '2026']].forEach(([idx, label]) => {
+    const [tx] = worldToMap(timeX(idx), 0);
+    if (tx > 16 && tx < MM.W - 16) c.fillText(label, tx, MM.H - 8);
+  });
   // 当前日期竖线
   const [mfx] = worldToMap(timeX(State.timeIdx), 0);
   c.strokeStyle = 'rgba(255,140,60,.9)'; c.beginPath(); c.moveTo(mfx, MM.split + 2); c.lineTo(mfx, MM.H - 2); c.stroke();
@@ -1797,7 +1809,7 @@ function loop() {
   const dt = Math.min(t - prevT, 0.1); prevT = t;
   const mNow = macroNow();
   stars.forEach(st => {
-    st.spinner.rotation.y = t * st.spin * 0.45;                  // 星球自转
+    st.spinner.rotation.y = t * (st.spinSpeed ?? st.spin);       // 星球自转（速度=估值温度）
     if (st.clouds) st.clouds.rotation.y = t * st.spin * 0.18;    // 云层慢速错动
     st.face.quaternion.copy(camera.quaternion);                  // 把手环始终面向镜头
     // 沿地势行走：横向平滑走向目标位置，高度取脚下云面
