@@ -1,0 +1,2164 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>估值星系 · 真数据版 v1.4</title>
+<style>
+  :root {
+    color-scheme: dark;
+    --surface-1: #1a1a19;
+    --page: #08080f;
+    --text-primary: #ffffff;
+    --text-secondary: #c3c2b7;
+    --text-muted: #898781;
+    --grid: #2c2c2a;
+    --baseline: #383835;
+    --series-1: #3987e5;
+    --series-2: #d95926;
+    --status-critical: #d03b3b;
+    --status-warning: #fab219;
+    --border: rgba(255,255,255,0.10);
+    --panel-bg: rgba(18,18,26,0.94);
+  }
+  * { margin:0; padding:0; box-sizing:border-box; }
+  html, body { height:100%; }
+  body {
+    font-family: system-ui, -apple-system, "Segoe UI", sans-serif;
+    background: linear-gradient(to bottom, #010208 0%, #060a20 45%, #131530 72%, #241f3d 88%, #3a3050 100%);
+    color: var(--text-primary);
+    overflow: hidden;
+  }
+  #scene { position:fixed; inset:0; width:100vw; height:100vh; display:block; cursor:grab; }
+  #scene.dragging { cursor:grabbing; }
+
+  .header { position:fixed; top:18px; left:22px; z-index:10; pointer-events:none; }
+  .header h1 { font-size:18px; font-weight:650; letter-spacing:.5px; }
+  .header .badge {
+    display:inline-block; margin-top:6px; padding:2px 8px; border:1px solid var(--border);
+    border-radius:99px; font-size:11px; color:var(--status-warning);
+  }
+  .header .sub { font-size:12px; color:var(--text-muted); margin-top:6px; max-width:280px; line-height:1.6; }
+
+  .hud {
+    position:fixed; top:18px; right:18px; width:264px; z-index:10;
+    background:var(--panel-bg); border:1px solid var(--border); border-radius:14px;
+    padding:16px; backdrop-filter: blur(8px);
+  }
+  .hud h2 { font-size:12px; font-weight:600; color:var(--text-secondary); letter-spacing:1px; margin-bottom:10px; }
+  .time-hud { right:294px; width:224px; }
+  .hud .focus-ticker { font-size:22px; font-weight:750; margin-bottom:8px; }
+  .hud .focus-ticker small { font-size:11px; font-weight:400; color:var(--text-muted); margin-left:6px; }
+  .thermo-row { display:flex; align-items:center; gap:14px; margin-bottom:14px; }
+  .thermo-track {
+    position:relative; width:14px; height:150px; border-radius:8px;
+    background:linear-gradient(to top, hsl(95 70% 42%), hsl(55 85% 50%), hsl(18 85% 50%));
+    border:1px solid var(--border);
+  }
+  .thermo-needle {
+    position:absolute; left:-6px; width:26px; height:3px; background:#fff; border-radius:2px;
+    box-shadow:0 0 6px rgba(255,255,255,.8); transition: top .4s ease;
+  }
+  .thermo-read { flex:1; }
+  .thermo-read .val { font-size:34px; font-weight:750; line-height:1; }
+  .thermo-read .lab { font-size:12px; color:var(--text-secondary); margin-top:4px; }
+  .thermo-read .diverge { font-size:11px; margin-top:8px; color:var(--text-muted); }
+  .thermo-read .diverge b { color:var(--status-warning); font-weight:600; }
+
+  .wrow { display:flex; align-items:center; gap:8px; margin:7px 0; }
+  .wrow label { width:76px; font-size:12px; color:var(--text-secondary); }
+  .wrow input[type=range] { flex:1; accent-color: var(--series-1); height:14px; }
+  .wrow .wv { width:34px; text-align:right; font-size:11px; color:var(--text-muted); font-variant-numeric: tabular-nums; }
+
+  .presets { display:flex; gap:6px; margin-top:12px; flex-wrap:wrap; }
+  .presets button {
+    flex:1; min-width:52px; padding:5px 4px; font-size:11px; border-radius:8px; cursor:pointer;
+    background:transparent; color:var(--text-secondary); border:1px solid var(--border);
+  }
+  .presets button.active { background:var(--series-1); color:#fff; border-color:var(--series-1); }
+
+  /* 左下角立体视角球 */
+  #orbitBall {
+    position:fixed; left:30px; bottom:220px; width:84px; height:84px; border-radius:50%;
+    z-index:11; cursor:grab; touch-action:none;
+    background: radial-gradient(circle at 32% 28%, #d6d9e4 0%, #a0a4b4 34%, #62667a 68%, #383b4a 100%);
+    box-shadow: inset -10px -12px 20px rgba(0,0,0,.5), inset 4px 5px 10px rgba(255,255,255,.25), 0 8px 22px rgba(0,0,0,.5);
+    border:1px solid rgba(255,255,255,.16);
+  }
+  #orbitBall::before {
+    content:''; position:absolute; inset:14px; border-radius:50%;
+    border:1px dashed rgba(255,255,255,.22); transform: rotateX(60deg);
+  }
+  #orbitBall::after {
+    content:'拖动旋转视角'; position:absolute; bottom:-24px; width:120px; left:-18px; text-align:center;
+    font-size:11px; color:var(--text-muted);
+  }
+  #orbitBall.grabbing { cursor:grabbing; }
+  #resetView {
+    position:fixed; left:26px; bottom:158px; width:92px; z-index:11;
+    padding:6px 0; border-radius:99px; border:1px solid var(--border);
+    background:var(--panel-bg); color:var(--text-secondary); font-size:12px; cursor:pointer;
+  }
+  #resetView:hover { color:#fff; border-color:var(--series-1); }
+
+  .legend {
+    position:fixed; left:22px; bottom:18px; z-index:10; font-size:11.5px; color:var(--text-muted);
+    background:var(--panel-bg); border:1px solid var(--border); border-radius:12px; padding:12px 14px;
+    line-height:1.9; max-width:340px;
+  }
+  .legend b { color:var(--text-secondary); font-weight:600; }
+
+  .tip-label {
+    position:fixed; z-index:9; transform:translate(-50%,-50%); pointer-events:auto; cursor:pointer;
+    font-size:11.5px; color:var(--text-secondary); background:rgba(10,10,16,.72);
+    border:1px solid var(--border); padding:3px 9px; border-radius:99px; white-space:nowrap;
+    transition:color .2s, border-color .2s;
+  }
+  .tip-label:hover { color:#fff; border-color:var(--series-1); }
+  .tip-label .sc { color:var(--text-muted); font-variant-numeric:tabular-nums; margin-left:4px; }
+
+  #tooltip {
+    position:fixed; z-index:30; display:none; max-width:260px; pointer-events:none;
+    background:var(--panel-bg); border:1px solid var(--border); border-radius:10px;
+    padding:10px 12px; font-size:12px; line-height:1.6; color:var(--text-secondary);
+  }
+  #tooltip b { color:var(--status-warning); display:block; margin-bottom:2px; }
+
+  .modal {
+    position:fixed; inset:0; z-index:20; display:none; align-items:center; justify-content:center;
+    background:rgba(4,4,10,.66);
+  }
+  .modal.open { display:flex; }
+  .modal .card {
+    width:min(760px, 94vw); max-height:88vh; overflow:auto;
+    background:var(--surface-1); border:1px solid var(--border); border-radius:16px; padding:22px 24px;
+  }
+  .card h3 { font-size:16px; font-weight:650; margin-bottom:2px; }
+  .card .src { font-size:11px; color:var(--text-muted); margin-bottom:14px; }
+  .card .close { float:right; background:none; border:1px solid var(--border); color:var(--text-secondary);
+    border-radius:8px; padding:3px 10px; cursor:pointer; font-size:12px; }
+  .card canvas { width:100%; height:auto; display:block; background:var(--surface-1); border-radius:8px; }
+  .ctl-row { display:flex; align-items:center; gap:10px; margin:8px 0; font-size:13px; }
+  .ctl-row label { width:150px; color:var(--text-secondary); }
+  .ctl-row input[type=range] { flex:1; accent-color:var(--series-1); }
+  .ctl-row .cv { width:64px; text-align:right; font-variant-numeric:tabular-nums; }
+  .big-compare { display:flex; gap:18px; margin:16px 0; }
+  .big-compare .box { flex:1; border:1px solid var(--border); border-radius:12px; padding:12px 14px; }
+  .big-compare .box .k { font-size:12px; color:var(--text-muted); }
+  .big-compare .box .v { font-size:26px; font-weight:700; margin-top:2px; }
+  .note { font-size:12px; color:var(--text-muted); line-height:1.7; margin-top:12px; border-top:1px solid var(--grid); padding-top:10px; }
+
+  /* 打分推导 & 数据来源 */
+  .derive { margin-top:16px; border:1px solid var(--border); border-radius:12px; padding:14px 16px; }
+  .derive h4 { font-size:13px; font-weight:650; margin-bottom:8px; color:var(--text-primary); }
+  .derive ol { margin-left:18px; font-size:12.5px; color:var(--text-secondary); line-height:2; }
+  .derive ol b { color:var(--text-primary); font-variant-numeric:tabular-nums; }
+  .derive .formula { font-family:ui-monospace, monospace; font-size:12px; background:rgba(255,255,255,.04);
+    border-radius:6px; padding:8px 10px; margin:8px 0; color:var(--text-secondary); overflow-x:auto; white-space:nowrap; }
+  .dtable { width:100%; border-collapse:collapse; font-size:12px; margin-top:10px; }
+  .dtable th { text-align:left; color:var(--text-muted); font-weight:500; padding:5px 8px; border-bottom:1px solid var(--grid); }
+  .dtable td { padding:5px 8px; border-bottom:1px solid var(--grid); color:var(--text-secondary); }
+  .dtable td:first-child { color:var(--text-primary); }
+  .dtable .tag { font-family:ui-monospace, monospace; font-size:11px; color:var(--series-1); }
+
+  /* 财报原文框 */
+  .rawbox { margin-top:12px; border:1px dashed rgba(255,255,255,.18); border-radius:10px;
+    padding:12px 14px; background:rgba(255,255,255,.025); }
+  .rawbox h5 { font-family:ui-monospace, monospace; font-size:11.5px; font-weight:600;
+    color:var(--status-warning); margin-bottom:8px; letter-spacing:.3px; }
+  .rawbox table { width:100%; border-collapse:collapse; font-family:ui-monospace, monospace; font-size:12px; }
+  .rawbox td { padding:4px 8px; border-bottom:1px solid rgba(255,255,255,.06); color:var(--text-secondary); }
+  .rawbox td:last-child { text-align:right; color:var(--text-primary); font-variant-numeric:tabular-nums; white-space:nowrap; }
+  .rawbox tr.hl td { color:var(--series-1); }
+  .rawbox .rn { font-size:11px; color:var(--text-muted); margin-top:8px; }
+  .ilnote { font-size:12px; color:var(--text-muted); line-height:1.75; margin:6px 0 16px;
+    border-left:2px solid var(--grid); padding-left:10px; }
+  .ilnote b { color:var(--text-secondary); }
+
+  .flag-item { display:flex; gap:10px; padding:10px 0; border-bottom:1px solid var(--grid); font-size:13px; line-height:1.6; }
+  .flag-item .dot { width:10px; height:10px; border-radius:50%; margin-top:5px; flex-shrink:0; }
+  .flag-item.lit .dot { background:var(--status-critical); box-shadow:0 0 8px var(--status-critical); }
+  .flag-item.off .dot { background:var(--baseline); }
+  .flag-item .t b { color:var(--text-primary); font-weight:600; }
+  .flag-item .t .ev { color:var(--text-muted); font-size:12px; }
+  .flag-item.off .t b { color: var(--text-muted); }
+</style>
+</head>
+<body>
+<canvas id="scene"></canvas>
+
+<div class="header">
+  <h1>估值星系 · Valuation Galaxy</h1>
+  <span class="badge" style="color:#7ee08a; border-color:rgba(126,224,138,.4)">真数据 v1.4 · 数据仓库(每日自动更新) + EDGAR + FMP</span>
+  <div id="loadStatus" style="margin-top:6px; font-size:12px; color:var(--text-secondary)">EDGAR 待加载</div>
+  <div id="loadNote" style="font-size:11px; color:var(--text-muted)"></div>
+  <div style="pointer-events:auto; display:flex; gap:6px; margin-top:8px; flex-wrap:wrap">
+    <button id="glossaryBtn" style="padding:4px 12px; border-radius:99px; border:1px solid var(--border); background:var(--panel-bg); color:var(--text-secondary); font-size:12px; cursor:pointer;">📖 名词解释</button>
+    <button id="settingsBtn" style="padding:4px 12px; border-radius:99px; border:1px solid var(--border); background:var(--panel-bg); color:var(--text-secondary); font-size:12px; cursor:pointer;">⚙ 行情设置</button>
+  </div>
+  <div class="sub">左键拖平移 · 右键/Shift+拖旋转视角 · 滚轮缩放 · 点其他星切焦点 · 点角标签下钻 · 云海横轴=时间，拖时间滑块舰队沿轴行进</div>
+</div>
+
+<div class="hud">
+  <div class="focus-ticker"><span id="hTicker">NVDA</span><small id="hChain"></small></div>
+  <h2>估值温度</h2>
+  <div class="thermo-row">
+    <div class="thermo-track"><div class="thermo-needle" id="needle"></div></div>
+    <div class="thermo-read">
+      <div class="val" id="tempVal">0</div>
+      <div class="lab" id="tempLab">—</div>
+      <div class="diverge" id="divergeLab"></div>
+    </div>
+  </div>
+  <h2>权重推拉杆（作用于全星系）</h2>
+  <div id="weightRows"></div>
+  <div class="presets" id="presets"></div>
+</div>
+
+<div class="hud time-hud">
+  <h2>数据时间</h2>
+  <input id="timeSlider" type="range" min="0" max="11" value="11" style="width:100%; accent-color:var(--series-2)">
+  <div id="timeLab" style="font-size:11px; color:var(--text-secondary); margin-top:6px; line-height:1.6"></div>
+  <div style="font-size:10.5px; color:var(--text-muted); margin-top:6px; line-height:1.5">拖动回放：星形/温度/海拔随财报期变化（样例演拟；正式版由 EDGAR 历史 filing 逐期重算）</div>
+</div>
+
+<div class="legend">
+  <b>怎么读：</b><b>星色=行业</b>（黄=算力 蓝=云 紫=内存 青=应用 白=电力）· 角越长 = 该维度越贵/越危险 · <b>胖瘦+海拔</b> = 加权估值温度 ·
+  <b>光晕</b> 黄绿=洼地 / 黄红=泡沫 · <b>气泡</b> 绿=今日涨 / 红=今日跌 ·
+  <b>环绕火花</b> = 红旗（悬停看证据）· <b>云海 = 时间轴地形图</b>：横轴是时间，地形高度是各期流动性曲线（2022 是深谷）；拖时间滑块星星舰队沿轴行进 · 点云海下钻
+</div>
+
+<!-- 顶部中央：搜索栏 + 小地图 -->
+<div id="topbar" style="position:fixed; top:14px; left:50%; transform:translateX(-50%); z-index:12; display:flex; flex-direction:column; align-items:center; gap:8px;">
+  <div style="display:flex; gap:6px;">
+    <input id="searchTicker" placeholder="输入任意美股 ticker，回车加载" style="width:230px; background:var(--panel-bg); border:1px solid var(--border); border-radius:99px; color:#fff; font-size:13px; padding:7px 16px; backdrop-filter:blur(8px);">
+    <button id="searchBtn" style="padding:6px 16px; border-radius:99px; border:1px solid var(--border); background:var(--panel-bg); color:var(--text-secondary); font-size:13px; cursor:pointer;">搜索加载</button>
+  </div>
+  <canvas id="minimap" width="560" height="150" style="width:280px; height:75px; border-radius:10px; border:1px solid var(--border); background:rgba(10,12,26,.75); backdrop-filter:blur(8px); cursor:pointer;"></canvas>
+</div>
+<div id="orbitBall"></div>
+<button id="resetView">一键回正</button>
+<div id="tipLabels"></div>
+<div id="tooltip"></div>
+
+<div class="modal" id="modal"><div class="card" id="modalCard"></div></div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/three.js/r128/three.min.js"></script>
+<script>
+/* =====================================================================
+   引擎层（纯函数；window.Engine 可独立测试）
+   ===================================================================== */
+const Engine = (() => {
+  function dcfFair({ fcf0, g, gT, r, years = 10 }) {
+    let pv = 0, f = fcf0;
+    for (let i = 1; i <= years; i++) { f *= (1 + g); pv += f / Math.pow(1 + r, i); }
+    pv += (f * (1 + gT)) / (r - gT) / Math.pow(1 + r, years);
+    return pv;
+  }
+  function impliedGrowth({ price, fcf0, gT, r, years = 10 }) {
+    let lo = -0.5, hi = 1.5;
+    for (let i = 0; i < 80; i++) {
+      const mid = (lo + hi) / 2;
+      (dcfFair({ fcf0, g: mid, gT, r, years }) < price) ? lo = mid : hi = mid;
+    }
+    return (lo + hi) / 2;
+  }
+  function scoreL1(impliedG, achievableG) { return clamp((impliedG - achievableG) / 0.15 * 100, -100, 100); }
+  function percentileScore(current, history) {
+    const n = history.length; if (!n) return 0;
+    const below = history.filter(v => v < current).length;
+    return clamp((below / n) * 200 - 100, -100, 100);
+  }
+  function regression(xs, ys) {
+    const n = xs.length;
+    const mx = xs.reduce((a, b) => a + b, 0) / n, my = ys.reduce((a, b) => a + b, 0) / n;
+    let sxy = 0, sxx = 0;
+    for (let i = 0; i < n; i++) { sxy += (xs[i] - mx) * (ys[i] - my); sxx += (xs[i] - mx) ** 2; }
+    const b = sxy / sxx, a = my - b * mx;
+    const resid = ys.map((y, i) => y - (a + b * xs[i]));
+    const sd = Math.sqrt(resid.reduce((s, e) => s + e * e, 0) / n) || 1;
+    return { a, b, sd };
+  }
+  function scoreL3(peers, target) {
+    const xs = peers.map(p => p.g), ys = peers.map(p => p.evs);
+    const { a, b, sd } = regression(xs, ys);
+    const resid = target.evs - (a + b * target.g);
+    return { score: clamp(resid / (2 * sd) * 100, -100, 100), a, b, sd, resid };
+  }
+  function scoreL4(quality) { return clamp((50 - quality) * 2, -100, 100); }
+  function scoreL5(heat, sensitivity) { return clamp((heat - 50) * 2 * sensitivity, -100, 100); }
+  function temperature(scores, weights) {
+    const wsum = weights.reduce((a, b) => a + b, 0) || 1;
+    return scores.reduce((s, sc, i) => s + sc * weights[i], 0) / wsum;
+  }
+  function divergence(scores) { const v = scores.slice(0, 3); return Math.max(...v) - Math.min(...v); }
+  function clamp(v, lo, hi) { return Math.min(hi, Math.max(lo, v)); }
+  function runTests() {
+    const failures = [];
+    const assert = (cond, msg) => { if (!cond) failures.push(msg); };
+    const near = (a, b, eps = 1e-6) => Math.abs(a - b) < eps;
+    assert(near(dcfFair({ fcf0: 1, g: 0, gT: 0, r: 0.1, years: 1 }), 1 / 1.1 + (1 / 0.1) / 1.1), 'DCF 基本用例失败');
+    const ig = impliedGrowth({ price: dcfFair({ fcf0: 2, g: 0.12, gT: 0.04, r: 0.09 }), fcf0: 2, gT: 0.04, r: 0.09 });
+    assert(near(ig, 0.12, 1e-4), '逆向 DCF 应还原正向增速');
+    assert(scoreL1(0.30, 0.15) === 100, 'L1 封顶失败');
+    assert(percentileScore(5, [1, 2, 3, 4, 6, 7, 8, 9, 10, 11]) === -20, 'L2 分位失败');
+    assert(scoreL4(50) === 0 && scoreL4(100) === -100, 'L4 映射失败');
+    assert(near(temperature([100, 0, 0, 0, 0], [50, 0, 0, 0, 50]), 50), '温度合成失败');
+    try { (console && console.log) && console.log(failures.length ? 'Engine 测试失败: ' + failures.join('; ') : 'Engine 单元测试通过 ✓'); } catch (e) {}
+    return failures;
+  }
+  return { dcfFair, impliedGrowth, scoreL1, percentileScore, regression, scoreL3, scoreL4, scoreL5, temperature, divergence, clamp, runTests };
+})();
+try { Engine.runTests(); } catch (e) {}
+
+/* =====================================================================
+   真数据层 v1.0 —— 宇宙 · 宏观快照 · EDGAR 运行时加载器 · 逐季五角计算
+   基本面：用户浏览器直连 SEC EDGAR（官方 CORS，逐公司懒加载，任何美股可搜）
+   行情：FMP 免费 key（设置里粘贴）> 手动输入 > 无价格（价格类角自动降权）
+   宏观：静态快照（FRED 人工快照 2026-07，UI 标注）
+   ===================================================================== */
+
+/* ---- 股票池（92 家，10 个星座）---- */
+const UNIVERSE = [
+  ['NVDA','英伟达','AI芯片',1045810],['AMD','超威半导体','AI芯片',2488],['AVGO','博通','AI芯片',1730168],['QCOM','高通','AI芯片',804328],['MRVL','迈威尔','AI芯片',1835632],['ARM','安谋','AI芯片',1973239],['MU','美光','AI芯片',723125],['INTC','英特尔','AI芯片',50863],['TSM','台积电','AI芯片',null],
+  ['AMAT','应用材料','半导体设备',6951],['LRCX','拉姆研究','半导体设备',707549],['KLAC','科磊','半导体设备',319201],['SNPS','新思科技','半导体设备',883241],['CDNS','铿腾电子','半导体设备',813672],['ASML','阿斯麦','半导体设备',937966],
+  ['MSFT','微软','云巨头',789019],['GOOGL','谷歌','云巨头',1652044],['AMZN','亚马逊','云巨头',1018724],['META','Meta','云巨头',1326801],['AAPL','苹果','云巨头',320193],['ORCL','甲骨文','云巨头',1341439],['IBM','IBM','云巨头',51143],
+  ['CRM','赛富时','软件SaaS',1108524],['NOW','ServiceNow','软件SaaS',1373715],['SNOW','Snowflake','软件SaaS',1640147],['PLTR','Palantir','软件SaaS',1321655],['ADBE','Adobe','软件SaaS',796343],['INTU','财捷','软件SaaS',896878],['CRWD','CrowdStrike','软件SaaS',1535527],['PANW','派拓网络','软件SaaS',1327567],['DDOG','Datadog','软件SaaS',1561550],['NET','Cloudflare','软件SaaS',1477333],['MDB','MongoDB','软件SaaS',1441816],['ZS','Zscaler','软件SaaS',1713683],['TEAM','Atlassian','软件SaaS',1650372],['WDAY','Workday','软件SaaS',1327811],
+  ['NFLX','奈飞','互联网',1065280],['UBER','优步','互联网',1543151],['ABNB','爱彼迎','互联网',1559720],['SHOP','Shopify','互联网',1594805],['SPOT','Spotify','互联网',1639920],['COIN','Coinbase','互联网',1679788],['PYPL','PayPal','互联网',1633917],
+  ['VRT','维谛技术','数据中心电力',1674101],['ETN','伊顿','数据中心电力',1551182],['CEG','星座能源','数据中心电力',1868275],['VST','Vistra','数据中心电力',1692819],['NRG','NRG能源','数据中心电力',1013871],['GEV','GE Vernova','数据中心电力',1996810],['SMCI','超微电脑','数据中心电力',1375365],['DELL','戴尔','数据中心电力',1571949],['ANET','Arista','数据中心电力',1596532],
+  ['JPM','摩根大通','金融',19617],['BAC','美国银行','金融',70858],['GS','高盛','金融',886982],['MS','摩根士丹利','金融',895421],['V','维萨','金融',1403161],['MA','万事达','金融',1141391],['AXP','美国运通','金融',4962],['BLK','贝莱德','金融',2012383],
+  ['LLY','礼来','医疗',59478],['UNH','联合健康','医疗',731766],['JNJ','强生','医疗',200406],['ABBV','艾伯维','医疗',1551152],['MRK','默沙东','医疗',310158],['PFE','辉瑞','医疗',78003],['TMO','赛默飞','医疗',97745],['ISRG','直觉外科','医疗',1035267],
+  ['WMT','沃尔玛','消费',104169],['COST','开市客','消费',909832],['PG','宝洁','消费',80424],['KO','可口可乐','消费',21344],['PEP','百事','消费',77476],['MCD','麦当劳','消费',63908],['NKE','耐克','消费',320187],['SBUX','星巴克','消费',829224],['HD','家得宝','消费',354950],['DIS','迪士尼','消费',1744489],
+  ['XOM','埃克森美孚','能源工业',34088],['CVX','雪佛龙','能源工业',93410],['COP','康菲石油','能源工业',1163165],['GE','通用电气','能源工业',40545],['CAT','卡特彼勒','能源工业',18230],['BA','波音','能源工业',12927],['DE','迪尔','能源工业',315189],['LMT','洛克希德','能源工业',936468],['RTX','雷神','能源工业',101829],['HON','霍尼韦尔','能源工业',773840],
+  ['TMUS','T-Mobile','通信',1283699],['VZ','威瑞森','通信',732712],['T','AT&T','通信',732717],['CMCSA','康卡斯特','通信',1166691],
+];
+const SECTOR_ORDER = ['AI芯片','半导体设备','云巨头','软件SaaS','互联网','数据中心电力','金融','医疗','消费','能源工业','通信','自选'];
+
+/* ---- 宏观静态快照（人工快照 · 2026-07 · 数据源 FRED：DGS10−T10YIE、BAMLH0A0HYM2、NFCI）---- */
+const MACRO = {
+  quarters: ['2019Q1','2019Q2','2019Q3','2019Q4','2020Q1','2020Q2','2020Q3','2020Q4','2021Q1','2021Q2','2021Q3','2021Q4','2022Q1','2022Q2','2022Q3','2022Q4','2023Q1','2023Q2','2023Q3','2023Q4','2024Q1','2024Q2','2024Q3','2024Q4','2025Q1','2025Q2','2025Q3','2025Q4','2026Q1','2026Q2'],
+  realRate: [0.8,0.5,0.2,0.2,-0.3,-0.7,-0.9,-1.0,-0.6,-0.9,-0.9,-1.0,-0.4,0.6,1.5,1.6,1.2,1.5,2.2,1.7,1.9,2.1,1.6,1.9,2.0,2.1,2.0,2.2,2.3,2.3],
+  hySpread: [3.9,3.8,3.7,3.4,8.7,6.3,5.2,3.9,3.3,3.1,2.9,3.1,3.4,5.7,5.5,4.7,4.6,4.1,3.9,3.4,3.1,3.2,3.0,2.9,3.0,3.1,3.2,3.3,3.35,3.42],
+  nfci: [-0.55,-0.56,-0.55,-0.57,0.65,-0.15,-0.35,-0.45,-0.60,-0.63,-0.62,-0.58,-0.35,-0.05,0.02,-0.10,-0.20,-0.30,-0.35,-0.40,-0.45,-0.48,-0.50,-0.52,-0.48,-0.42,-0.30,-0.15,-0.08,0.02],
+  liquidity: [52,54,55,56,18,68,75,80,84,86,85,78,55,30,20,14,22,30,36,42,48,54,58,60,61,58,52,48,46,46],
+  note: '宏观为静态快照（截至 2026-07，来源 FRED），正式联网版逐日更新',
+};
+MACRO.stress = MACRO.hySpread.map(v => Engine.clamp((v - 2.8) / 4, 0.05, 0.95));
+const TIMELINE = MACRO.quarters.slice(-12);           // 最近 12 个财报期
+const TIME_LAST = TIMELINE.length - 1;
+const MACRO_OFF = MACRO.quarters.length - TIMELINE.length;
+const MACRO_HIST = {   // 渲染层沿用的接口
+  liquidity: MACRO.liquidity.slice(-12),
+  stress: MACRO.stress.slice(-12),
+};
+const PRICE_DATE = '快照/手动';
+
+const State = { weights: [30, 15, 20, 15, 20], temp: 0, focus: null, timeIdx: TIME_LAST, fmpKey: '', manualPrice: {} };
+const LAYERS = ['绝对估值', '历史分位', '同行相对', '质量(反)', '行业周期'];
+const PRESETS = { '均衡': [30,15,20,15,20], '价值派': [45,20,15,15,5], '成长派': [25,5,20,35,15], '周期警惕': [20,10,10,15,45] };
+
+/* ---- 星系条目 ---- */
+const GALAXY = UNIVERSE.map(([t, n, c, cik]) => ({
+  ticker: t, name: n, chain: c, cik: cik ? String(cik).padStart(10, '0') : null,
+  mkt: 0.34, chg: 0, scores: null, loaded: false, status: '待加载',
+}));
+const NVDA_SD = GALAXY.find(s => s.ticker === 'NVDA');
+function macroNow() {
+  const i = MACRO_OFF + State.timeIdx;
+  return { liq: MACRO.liquidity[i], stress: MACRO.stress[i], realRate: MACRO.realRate[i], hy: MACRO.hySpread[i], nfci: MACRO.nfci[i] };
+}
+
+/* ---- 时间轴地形（真实流动性历史）---- */
+const TIME_SPAN = 72;
+function timeX(idx) { return (idx - TIME_LAST / 2) * TIME_SPAN; }
+function terrainH(x) {
+  const p = Engine.clamp((x - timeX(0)) / TIME_SPAN, 0, TIME_LAST);
+  const i0 = Math.min(Math.floor(p), TIME_LAST - 1);
+  const f = p - i0, s = f * f * (3 - 2 * f);
+  const liq = MACRO_HIST.liquidity[i0] * (1 - s) + MACRO_HIST.liquidity[i0 + 1] * s;
+  return (liq - 50) * 0.58;
+}
+function cloudHeightLocal(x, y, t, stress) {
+  return terrainH(x)
+       + Math.sin(x * 0.3 + t * 0.5) * Math.cos(y * 0.35 + t * 0.4) * 0.2
+       + Math.sin(x * 0.07 - t * 0.25) * 0.14;
+}
+function cloudLift() { return 0; }
+
+/* =====================================================================
+   EDGAR 运行时加载器（Hub）
+   ===================================================================== */
+const MOCK = /[?&]mock=1/.test(location.search);
+const Hub = {
+  UA_NOTE: 'SEC 要求浏览器请求自带 UA，无需配置',
+  cikMap: null, companies: {}, sectorStats: {},
+  queueDelay: 420, lastReq: 0,   // companyfacts 单请求较大，节流放宽保护公共代理
+  TAGS: {
+    rev:   { cands: ['RevenueFromContractWithCustomerExcludingAssessedTax','Revenues','SalesRevenueNet','RevenueFromContractWithCustomerIncludingAssessedTax'], kind: 'dur' },
+    ni:    { cands: ['NetIncomeLoss'], kind: 'dur' },
+    ocf:   { cands: ['NetCashProvidedByUsedInOperatingActivities','NetCashProvidedByUsedInOperatingActivitiesContinuingOperations'], kind: 'dur' },
+    capex: { cands: ['PaymentsToAcquirePropertyPlantAndEquipment','PaymentsToAcquirePropertyAndEquipmentAndIntangibleAssets','PaymentsToAcquireProductiveAssets','PaymentsToAcquirePropertyPlantAndEquipmentAndIntangibleAssets'], kind: 'dur' },
+    gp:    { cands: ['GrossProfit'], kind: 'dur', optional: true },
+    opinc: { cands: ['OperatingIncomeLoss'], kind: 'dur', optional: true },
+    sbc:   { cands: ['ShareBasedCompensation'], kind: 'dur', optional: true },
+    shares:{ cands: ['WeightedAverageNumberOfDilutedSharesOutstanding'], kind: 'dur', unit: 'shares' },
+    assets:{ cands: ['Assets'], kind: 'inst', optional: true },
+    liabc: { cands: ['LiabilitiesCurrent'], kind: 'inst', optional: true },
+    inv:   { cands: ['InventoryNet'], kind: 'inst', optional: true },
+    debt:  { cands: ['LongTermDebtNoncurrent','LongTermDebt'], kind: 'inst', optional: true },
+    cash:  { cands: ['CashAndCashEquivalentsAtCarryingValue'], kind: 'inst', optional: true },
+  },
+
+  async throttle() {
+    const wait = this.lastReq + this.queueDelay - Date.now();
+    if (wait > 0) await new Promise(r => setTimeout(r, wait));
+    this.lastReq = Date.now();
+  },
+  /* 静态数据仓库（GitHub Actions 每天自动抓取 EDGAR 官方数据）：
+     相对路径 = 部署在 GitHub Pages 时同源秒读；raw 地址 = 本地双击打开 HTML 时用（GitHub 允许跨域） */
+  STATIC_BASES: ['data', 'https://raw.githubusercontent.com/Jessieeeeai/valuation-galaxy/main/data'],
+  async fetchStaticFacts(ticker) {
+    if (MOCK) return null;
+    for (const base of this.STATIC_BASES) {
+      try {
+        const r = await fetch(`${base}/facts/${encodeURIComponent(ticker.toUpperCase())}.json`, { headers: { 'Accept': 'application/json' } });
+        if (!r.ok) continue;
+        return await r.json();
+      } catch (e) { /* 换下一个源 */ }
+    }
+    return null;
+  },
+  mode: null,   // 'direct' | 'proxy1' | 'proxy2'：首个成功通道被记住
+  wrap(url, mode) {
+    if (mode === 'proxy1') return 'https://corsproxy.io/?url=' + encodeURIComponent(url);
+    if (mode === 'proxy2') return 'https://api.allorigins.win/raw?url=' + encodeURIComponent(url);
+    return url;
+  },
+  async fetchJson(url) {
+    if (MOCK) return mockFetch(url);
+    const all = ['direct', 'proxy1', 'proxy2'];
+    const order = this.mode ? [this.mode, ...all.filter(m => m !== this.mode)] : all;
+    let lastErr;
+    for (const mode of order) {
+      for (let attempt = 0; attempt < 2; attempt++) {
+        await this.throttle();
+        let r;
+        try { r = await fetch(this.wrap(url, mode), { headers: { 'Accept': 'application/json' } }); }
+        catch (e) { lastErr = e; break; }               // CORS/网络失败 → 换下一条通道
+        if (r.status === 429 || r.status === 503) {     // 通道限流 → 等 2.5s 重试本通道一次
+          lastErr = new Error('HTTP ' + r.status + '（通道限流）');
+          await new Promise(rs => setTimeout(rs, 2500));
+          continue;
+        }
+        if (!r.ok) { lastErr = new Error('HTTP ' + r.status); break; }
+        try {
+          const j = await r.json();
+          if (this.mode !== mode) {
+            this.mode = mode;
+            if (mode !== 'direct') UIStatus.note('EDGAR 直连被浏览器 CORS 拦截，已自动切换公共代理通道（' + mode + '）');
+          }
+          return j;
+        } catch (e) { lastErr = new Error('返回非 JSON（代理异常）'); break; }
+      }
+    }
+    throw lastErr;
+  },
+  async resolveCik(ticker) {
+    const sd = GALAXY.find(s => s.ticker === ticker);
+    if (sd && sd.cik) return sd.cik;
+    if (!this.cikMap) {
+      const j = await this.fetchJson('https://www.sec.gov/files/company_tickers.json');
+      this.cikMap = {};
+      Object.values(j).forEach(e => { this.cikMap[e.ticker.toUpperCase()] = String(e.cik_str).padStart(10, '0'); });
+    }
+    const cik = this.cikMap[ticker.toUpperCase()];
+    if (!cik) throw new Error('找不到该 ticker 的 CIK（可能非美股/未注册 SEC）');
+    return cik;
+  },
+  /* 从 companyfacts 全量包里挑出目标科目（多候选 tag 依次找） */
+  factsSeries(facts, cfg) {
+    const gaap = facts['us-gaap'] || {};
+    for (const tag of cfg.cands) {
+      const node = gaap[tag]; if (!node || !node.units) continue;
+      const units = node.units;
+      const unitKey = cfg.unit === 'shares'
+        ? Object.keys(units).find(k => /share/i.test(k))
+        : (units.USD ? 'USD' : Object.keys(units)[0]);
+      if (unitKey && units[unitKey] && units[unitKey].length) return { tag, entries: units[unitKey] };
+    }
+    return null;
+  },
+
+  /* 期末日期 → 日历季度键 */
+  qKeyOf(endStr) {
+    const d = new Date(endStr + 'T00:00:00Z');
+    let y = d.getUTCFullYear(), m = d.getUTCMonth() + 1, day = d.getUTCDate();
+    // 期末在月初（如 2 月 1 日）归入上一个月所在季度
+    if (day <= 6) { m -= 1; if (m === 0) { m = 12; y -= 1; } }
+    return y + 'Q' + Math.ceil(m / 3);
+  },
+  /* duration 科目 → 季度序列：frame 直取 + 年度差分 + YTD 差分 */
+  quarterlyFromEntries(entries) {
+    const q = {}, annual = {};
+    const durOf = e => (new Date(e.end) - new Date(e.start)) / 86400000;
+    entries.forEach(e => {
+      if (e.frame && /^CY\d{4}Q\d$/.test(e.frame)) q[e.frame.slice(2)] = e.val;
+      else if (e.frame && /^CY\d{4}$/.test(e.frame)) annual[e.frame.slice(2)] = e.val;
+    });
+    // YTD 差分：同一 fy 内 end 递增的链
+    const chains = {};
+    entries.filter(e => e.start && e.end && !e.frame).forEach(e => {
+      (chains[e.fy + e.fp?.[0] + e.start] = chains[e.fy + e.fp?.[0] + e.start] || []).push(e);
+    });
+    entries.filter(e => e.start && e.end).forEach(e => {
+      const d = durOf(e);
+      if (d > 80 && d < 100) { const k = this.qKeyOf(e.end); if (!(k in q)) q[k] = e.val; }
+    });
+    // 同 start 不同 end 的 YTD 对 → 差分出季度
+    const byStart = {};
+    entries.filter(e => e.start && e.end).forEach(e => { (byStart[e.start] = byStart[e.start] || []).push(e); });
+    Object.values(byStart).forEach(list => {
+      list.sort((a, b) => new Date(a.end) - new Date(b.end));
+      for (let i = 1; i < list.length; i++) {
+        const d = (new Date(list[i].end) - new Date(list[i - 1].end)) / 86400000;
+        if (d > 80 && d < 100) {
+          const k = this.qKeyOf(list[i].end);
+          if (!(k in q)) q[k] = list[i].val - list[i - 1].val;
+        }
+      }
+    });
+    // 年度 − 三季 → 补缺季
+    Object.entries(annual).forEach(([y, av]) => {
+      const keys = [1, 2, 3, 4].map(i => y + 'Q' + i);
+      const have = keys.filter(k => k in q);
+      if (have.length === 3) {
+        const miss = keys.find(k => !(k in q));
+        q[miss] = av - have.reduce((s, k) => s + q[k], 0);
+      }
+    });
+    return { q, annual };
+  },
+  instFromEntries(entries) {
+    const q = {};
+    entries.forEach(e => {
+      if (e.end) { const k = this.qKeyOf(e.end); if (!(k in q) || new Date(e.end) > new Date(q[k].end)) q[k] = { v: e.val, end: e.end }; }
+    });
+    const out = {}; Object.entries(q).forEach(([k, o]) => out[k] = o.v);
+    return out;
+  },
+
+  async loadCompany(ticker) {
+    const sd = GALAXY.find(s => s.ticker === ticker);
+    if (!sd || sd.loaded || sd.status === '加载中') return;
+    sd.status = '加载中'; UIStatus.update();
+    try {
+      // 通道 0：静态数据仓库（GitHub Actions 每天抓好的 EDGAR 数据，零代理零限流）
+      let j = await this.fetchStaticFacts(ticker), src = 'EDGAR·库';
+      if (j && j.cik) sd.cik = String(j.cik).padStart(10, '0');
+      if (!j) {
+        // 通道 1：浏览器实时拉 EDGAR companyfacts（直连→公共代理）
+        const cik = await this.resolveCik(ticker);
+        sd.cik = cik;
+        j = await this.fetchJson(`https://data.sec.gov/api/xbrl/companyfacts/CIK${cik}.json`);
+        src = 'EDGAR';
+      }
+      const facts = j.facts || {};
+      if (!facts['us-gaap'] && facts['ifrs-full']) throw new Error('外国发行人 IFRS 申报，暂不支持');
+      const series = {};
+      for (const [key, cfg] of Object.entries(this.TAGS)) {
+        const got = this.factsSeries(facts, cfg);
+        if (!got && ['rev', 'ni', 'ocf', 'shares'].includes(key)) throw new Error(`缺少核心科目 ${key}`);
+        if (got) {
+          series[key] = cfg.kind === 'inst' ? { q: this.instFromEntries(got.entries) } : this.quarterlyFromEntries(got.entries);
+          series[key].tag = got.tag;
+        }
+      }
+      this.companies[ticker] = { cik: sd.cik, series };
+      this.computeCompany(ticker);
+      sd.loaded = true; sd.status = '✓ ' + src;
+      this.recomputeSector(sd.chain);
+      onCompanyLoaded(ticker);
+    } catch (e) {
+      // EDGAR 通道全挂 → 有 FMP key 时用 FMP 财报接口兜底
+      if (State.fmpKey) {
+        try {
+          await this.loadCompanyFMP(ticker);
+          UIStatus.update();
+          return;
+        } catch (e2) { sd.status = '✗ ' + (e2.message || 'FMP 兜底也失败'); }
+      } else {
+        sd.status = '✗ ' + (e.message || '加载失败') + '（配 FMP key 可兜底）';
+      }
+    }
+    UIStatus.update();
+  },
+
+  /* FMP 财报兜底：income/cash-flow/balance 三张表 → 同结构季度序列 */
+  async loadCompanyFMP(ticker) {
+    const sd = GALAXY.find(s => s.ticker === ticker);
+    const get = async ep => {
+      const r = await fetch(`https://financialmodelingprep.com/api/v3/${ep}/${ticker}?period=quarter&limit=44&apikey=${State.fmpKey}`);
+      if (!r.ok) throw new Error('FMP HTTP ' + r.status);
+      const j = await r.json();
+      if (!Array.isArray(j) || !j.length) throw new Error('FMP 无该公司数据');
+      return j;
+    };
+    const [inc, cf, bs] = [await get('income-statement'), await get('cash-flow-statement'), await get('balance-sheet-statement')];
+    const S = {};
+    const put = (key, qk, val) => { if (val == null) return; (S[key] = S[key] || { q: {}, tag: 'FMP' }).q[qk] = val; };
+    inc.forEach(row => {
+      const qk = this.qKeyOf(row.date);
+      put('rev', qk, row.revenue); put('ni', qk, row.netIncome); put('gp', qk, row.grossProfit);
+      put('opinc', qk, row.operatingIncome); put('shares', qk, row.weightedAverageShsOutDil);
+    });
+    cf.forEach(row => {
+      const qk = this.qKeyOf(row.date);
+      put('ocf', qk, row.operatingCashFlow); put('capex', qk, Math.abs(row.capitalExpenditure || 0));
+      put('sbc', qk, row.stockBasedCompensation);
+    });
+    bs.forEach(row => {
+      const qk = this.qKeyOf(row.date);
+      put('assets', qk, row.totalAssets); put('liabc', qk, row.totalCurrentLiabilities);
+      put('inv', qk, row.inventory); put('debt', qk, row.longTermDebt); put('cash', qk, row.cashAndCashEquivalents);
+    });
+    if (!S.rev || !S.ni) throw new Error('FMP 数据缺核心科目');
+    this.companies[ticker] = { cik: sd.cik, series: S };
+    this.computeCompany(ticker);
+    sd.loaded = true; sd.status = '✓ FMP';
+    this.recomputeSector(sd.chain);
+    onCompanyLoaded(ticker);
+  },
+
+  /* TTM 求和（允许缺 1 季，按比例放大）*/
+  ttmAt(qmap, qi) {
+    let sum = 0, n = 0;
+    for (let k = 0; k < 4; k++) {
+      const key = TIMEAXIS[qi - k];
+      if (key && qmap[key] != null) { sum += qmap[key]; n++; }
+    }
+    return n >= 3 ? sum * (4 / n) : null;
+  },
+  lastInstAt(qmap, qi) {
+    for (let k = 0; k < 6; k++) { const key = TIMEAXIS[qi - k]; if (key && qmap[key] != null) return qmap[key]; }
+    return null;
+  },
+
+  computeCompany(ticker) {
+    const C = this.companies[ticker]; if (!C) return;
+    const S = C.series, sd = GALAXY.find(s => s.ticker === ticker);
+    const m = C.byQ = {};
+    TIMELINE.forEach((qk, ti) => {
+      const qi = TIMEAXIS.indexOf(qk);
+      const rev = this.ttmAt(S.rev?.q || {}, qi), revP = this.ttmAt(S.rev?.q || {}, qi - 4), rev3 = this.ttmAt(S.rev?.q || {}, qi - 12);
+      const ni = this.ttmAt(S.ni?.q || {}, qi);
+      const ocf = this.ttmAt(S.ocf?.q || {}, qi);
+      const capex = this.ttmAt(S.capex?.q || {}, qi) || 0;
+      const gpv = this.ttmAt(S.gp?.q || {}, qi);
+      const opinc = this.ttmAt(S.opinc?.q || {}, qi);
+      const sbc = this.ttmAt(S.sbc?.q || {}, qi);
+      const shares = this.lastInstAt(Object.fromEntries(Object.entries(S.shares?.q || {})), qi);
+      const assets = this.lastInstAt(S.assets?.q || {}, qi), liabc = this.lastInstAt(S.liabc?.q || {}, qi);
+      const inv = this.lastInstAt(S.inv?.q || {}, qi);
+      const debt = this.lastInstAt(S.debt?.q || {}, qi) || 0, cash = this.lastInstAt(S.cash?.q || {}, qi) || 0;
+      const yoy = rev && revP ? rev / revP - 1 : null;
+      const cagr3 = rev && rev3 && rev3 > 0 ? Math.pow(rev / rev3, 1 / 3) - 1 : yoy;
+      const fcf = ocf != null ? ocf - capex : null;
+      m[qk] = {
+        rev, yoy, cagr3, ni, ocf, capex, fcf, gp: gpv, opinc, sbc, shares, assets, liabc, inv, debt, cash,
+        fcfps: fcf != null && shares ? fcf / shares : null,
+        epsTTM: ni != null && shares ? ni / shares : null,
+        gm: gpv != null && rev ? gpv / rev : null,
+        ocfni: ocf != null && ni ? ocf / ni : null,
+        roic: opinc != null && assets ? (opinc * 0.85) / Math.max(assets - (liabc || 0), assets * 0.3) : null,
+        fcfMargin: fcf != null && rev ? fcf / rev : null,
+        sbcPct: sbc != null && rev ? sbc / rev : null,
+        invDays: inv != null && rev && gpv != null ? inv / Math.max(rev - gpv, rev * 0.05) * 365 : null,
+        ev: null, // 需价格
+      };
+    });
+    this.scoreCompany(ticker);
+  },
+
+  qualityOf(mm) {
+    const parts = [];
+    if (mm.ocfni != null) parts.push(['现金流质量 OCF/NI', Engine.clamp((mm.ocfni - 0.5) / 0.9, 0, 1) * 100, `OCF÷净利润 = ${mm.ocfni.toFixed(2)}`]);
+    if (mm.roic != null) parts.push(['ROIC', Engine.clamp(mm.roic / 0.4, 0, 1) * 100, `≈ ${(mm.roic * 100).toFixed(0)}%`]);
+    if (mm.yoy != null && mm.fcfMargin != null) {
+      const r40 = mm.yoy * 100 + mm.fcfMargin * 100;
+      parts.push(['Rule of 40', Engine.clamp((r40 + 10) / 80, 0, 1) * 100, `增速 ${(mm.yoy * 100).toFixed(0)}% + FCF率 ${(mm.fcfMargin * 100).toFixed(0)}% = ${r40.toFixed(0)}`]);
+    }
+    if (mm.gmSlope != null) parts.push(['利润率趋势', Engine.clamp((mm.gmSlope + 0.5) / 1.5, 0, 1) * 100, `毛利率斜率 ${mm.gmSlope >= 0 ? '+' : ''}${mm.gmSlope.toFixed(2)}pp/季`]);
+    if (mm.sbcPct != null) parts.push(['稀释控制', Engine.clamp(1 - mm.sbcPct / 0.15, 0, 1) * 100, `SBC 占营收 ${(mm.sbcPct * 100).toFixed(1)}%`]);
+    return parts;
+  },
+
+  scoreCompany(ticker) {
+    const C = this.companies[ticker]; if (!C) return;
+    const sd = GALAXY.find(s => s.ticker === ticker);
+    // 毛利率斜率（8 季）
+    TIMELINE.forEach((qk, ti) => {
+      const mm = C.byQ[qk]; if (!mm) return;
+      const gms = [];
+      for (let k = 7; k >= 0; k--) {
+        const key = TIMELINE[ti - k] || TIMEAXIS[TIMEAXIS.indexOf(qk) - k];
+        const q2 = C.byQ[key]; if (q2 && q2.gm != null) gms.push(q2.gm * 100);
+      }
+      if (gms.length >= 4) {
+        const n = gms.length, mx = (n - 1) / 2, my = gms.reduce((a, b) => a + b, 0) / n;
+        let sxy = 0, sxx = 0; gms.forEach((v, i) => { sxy += (i - mx) * (v - my); sxx += (i - mx) ** 2; });
+        mm.gmSlope = sxy / sxx;
+      }
+    });
+    C.scoresByQ = {};
+    TIMELINE.forEach((qk, ti) => {
+      const mm = C.byQ[qk]; if (!mm) { C.scoresByQ[qk] = null; return; }
+      const price = priceOf(ticker, ti);
+      const r = 0.045 + Math.max(macroAt(ti).realRate, 0) / 100 + 0.05;  // 折现率 = 实际利率 + ERP5% + 基础
+      let s1 = null, s2 = null;
+      if (price != null && mm.fcfps > 0) {
+        const ig = Engine.impliedGrowth({ price, fcf0: mm.fcfps, gT: 0.04, r });
+        mm.impliedG = ig; mm.discount = r;
+        s1 = Engine.scoreL1(ig, Math.max((mm.cagr3 ?? 0) * 0.7, 0.02));
+      }
+      // L2：PE 相对自身 TIMELINE 内历史（需逐期价格；无历史价时留空）
+      const peSeries = [];
+      TIMELINE.forEach((qk2, tj) => {
+        const p2 = priceOf(ticker, tj, true), m2 = C.byQ[qk2];
+        if (p2 != null && m2 && m2.epsTTM > 0) peSeries.push(p2 / m2.epsTTM);
+      });
+      if (price != null && mm.epsTTM > 0 && peSeries.length >= 8) {
+        s2 = Engine.percentileScore(price / mm.epsTTM, peSeries);
+        mm.peNow = price / mm.epsTTM;
+      }
+      if (price != null && mm.shares) { mm.mktcap = price * mm.shares; mm.ev = mm.mktcap + mm.debt - mm.cash; }
+      const qparts = this.qualityOf(mm);
+      const qual = qparts.length ? qparts.reduce((a, p) => a + p[1], 0) / qparts.length : null;
+      const s4 = qual != null ? Engine.scoreL4(qual) : null;
+      mm.qualityParts = qparts; mm.quality = qual;
+      C.scoresByQ[qk] = { s1, s2, s3: null, s4, s5: null };   // s3/s5 由行业聚合补
+    });
+    if (sd) this.applyScores(sd);
+  },
+
+  recomputeSector(chain) {
+    const members = GALAXY.filter(s => s.chain === chain && s.loaded);
+    // L5：行业 capex 热度（TTM capex 同比的行业合计，相对 12 期分位）+ L3 回归
+    TIMELINE.forEach((qk, ti) => {
+      const rows = members.map(s => ({ s, mm: this.companies[s.ticker]?.byQ[qk] })).filter(r => r.mm);
+      // L3
+      const pts = rows.filter(r => r.mm.yoy != null && r.mm.ev != null && r.mm.rev).map(r => ({ s: r.s, g: r.mm.yoy * 100, evs: r.mm.ev / r.mm.rev }));
+      if (pts.length >= 4) {
+        const fit = Engine.regression(pts.map(p => p.g), pts.map(p => p.evs));
+        pts.forEach(p => {
+          const resid = p.evs - (fit.a + fit.b * p.g);
+          const sc = Engine.clamp(resid / (2 * fit.sd) * 100, -100, 100);
+          const CQ = this.companies[p.s.ticker].scoresByQ[qk]; if (CQ) CQ.s3 = sc;
+          const mm = this.companies[p.s.ticker].byQ[qk]; mm.l3fit = fit; mm.evs = p.evs; mm.peerPts = pts.map(x => ({ t: x.s.ticker, g: x.g, evs: x.evs }));
+        });
+      }
+    });
+    // 行业 capex 合计序列 → 热度
+    const capexSeries = TIMELINE.map(qk => members.reduce((a, s) => a + (this.companies[s.ticker]?.byQ[qk]?.capex || 0), 0));
+    const yoyS = capexSeries.map((v, i) => i >= 4 && capexSeries[i - 4] > 0 ? v / capexSeries[i - 4] - 1 : null);
+    TIMELINE.forEach((qk, ti) => {
+      const hist = yoyS.slice(0, ti + 1).filter(v => v != null);
+      const cur = yoyS[ti];
+      let heat = 50;
+      if (cur != null && hist.length >= 4) heat = (Engine.percentileScore(cur, hist) + 100) / 2;
+      members.forEach(s => {
+        const C = this.companies[s.ticker]; const CQ = C?.scoresByQ[qk]; const mm = C?.byQ[qk];
+        if (!CQ || !mm) return;
+        const sens = mm.gm != null ? Engine.clamp(0.4 + Math.abs(mm.gmSlope ?? 0) * 0.8 + (s.chain.includes('芯片') || s.chain.includes('设备') ? 0.35 : 0), 0.3, 1) : 0.6;
+        CQ.s5 = Engine.scoreL5(heat, sens);
+        mm.sectorHeat = heat; mm.cycleSens = sens; mm.sectorCapexYoY = yoyS[ti];
+      });
+    });
+    members.forEach(s => this.applyScores(s));
+  },
+
+  applyScores(sd) {
+    const C = this.companies[sd.ticker]; if (!C) return;
+    sd.scoresByQ = TIMELINE.map(qk => {
+      const S = C.scoresByQ[qk]; if (!S) return null;
+      return [S.s1, S.s2, S.s3, S.s4, S.s5].map(v => v == null ? null : Math.round(v));
+    });
+    const latest = C.byQ[TIMELINE[TIME_LAST]];
+    if (latest && latest.mktcap) sd.mkt = Engine.clamp(Math.pow(latest.mktcap / 4e12, 0.34) * 1.35, 0.14, 1.4);
+    else if (latest && latest.rev) sd.mkt = Engine.clamp(Math.pow(latest.rev / 4e11, 0.34) * 1.1, 0.14, 1.2);
+    sd.scores = sd.scoresByQ[State.timeIdx] || sd.scoresByQ[TIME_LAST];
+    sd.flags = computeFlags(sd);
+  },
+};
+
+/* 完整日历季度轴（供 TTM 回看） */
+const TIMEAXIS = (() => {
+  const out = [];
+  for (let y = 2016; y <= 2026; y++) for (let q = 1; q <= 4; q++) {
+    if (y === 2026 && q > 2) break;
+    out.push(y + 'Q' + q);
+  }
+  return out;
+})();
+
+/* ---- 价格 ---- */
+const PRICE = { snapshot: {}, live: {}, history: {} };   // history[t] = {q键: price}
+function priceOf(ticker, ti = State.timeIdx, forSeries = false) {
+  if (ti === TIME_LAST || ti == null) {
+    if (State.manualPrice[ticker]) return State.manualPrice[ticker];
+    if (PRICE.live[ticker]) return PRICE.live[ticker].p;
+    if (PRICE.snapshot[ticker]) return PRICE.snapshot[ticker].p;
+    return null;
+  }
+  const h = PRICE.history[ticker];
+  if (h && h[TIMELINE[ti]] != null) return h[TIMELINE[ti]];
+  if (forSeries) return null;                     // 序列用途：没有就是没有
+  return priceOf(ticker, TIME_LAST);              // 回放兜底：用现价（UI 标注）
+}
+function macroAt(ti) { const i = MACRO_OFF + ti; return { realRate: MACRO.realRate[i], hy: MACRO.hySpread[i], nfci: MACRO.nfci[i], liq: MACRO.liquidity[i] }; }
+
+async function fmpLoadQuotes() {
+  if (!State.fmpKey) return;
+  const tk = GALAXY.map(s => s.ticker).join(',');
+  try {
+    const r = await fetch(`https://financialmodelingprep.com/api/v3/quote/${tk}?apikey=${State.fmpKey}`);
+    const j = await r.json();
+    if (Array.isArray(j)) j.forEach(q => {
+      PRICE.live[q.symbol] = { p: q.price, chg: q.changesPercentage };
+      const sd = GALAXY.find(s => s.ticker === q.symbol);
+      if (sd) sd.chg = q.changesPercentage || 0;
+    });
+    GALAXY.filter(s => s.loaded).forEach(s => { Hub.scoreCompany(s.ticker); Hub.recomputeSector(s.chain); });
+    refreshHUD(); rebuildAll(); UIStatus.update();
+  } catch (e) { UIStatus.note('FMP 行情拉取失败：' + e.message); }
+}
+async function fmpLoadHistory(ticker) {
+  if (!State.fmpKey || PRICE.history[ticker]) return;
+  try {
+    const r = await fetch(`https://financialmodelingprep.com/api/v3/historical-price-full/${ticker}?serietype=line&timeseries=1400&apikey=${State.fmpKey}`);
+    const j = await r.json();
+    const hist = {};
+    (j.historical || []).forEach(d => { hist[Hub.qKeyOf(d.date)] = d.close; });   // 每季保留最新交易日
+    PRICE.history[ticker] = hist;
+    Hub.scoreCompany(ticker); Hub.recomputeSector(GALAXY.find(s => s.ticker === ticker).chain);
+    refreshHUD(); rebuildAll();
+  } catch (e) { /* 静默 */ }
+}
+
+/* ---- 红旗（自动检测，可得数据范围内）---- */
+function computeFlags(sd) {
+  const C = Hub.companies[sd.ticker]; if (!C) return [];
+  const mm = C.byQ[TIMELINE[State.timeIdx]] || C.byQ[TIMELINE[TIME_LAST]]; if (!mm) return [];
+  const f = [];
+  f.push({ lit: mm.sectorCapexYoY != null && checkCapex2ndDeriv(sd.chain), name: '行业 Capex 二阶导拐点', ev: '行业聚合 capex 同比增速连续下行（EDGAR 实算）' });
+  f.push({ lit: mm.ocfni != null && mm.ocfni < 0.7, name: '利润现金含量低', ev: `OCF/净利润 = ${mm.ocfni?.toFixed(2) ?? '—'}，利润的现金支撑不足` });
+  f.push({ lit: mm.sbcPct != null && mm.sbcPct > 0.1, name: 'SBC 稀释偏高', ev: `股权激励占营收 ${(mm.sbcPct * 100).toFixed(1)}%` });
+  f.push({ lit: mm.invDays != null && trendUp(sd.ticker, 'invDays', 4), name: '库存天数连升', ev: `库存天数 ${mm.invDays?.toFixed(0)} 天且连续上升` });
+  f.push({ lit: false, name: '循环融资暴露', ev: '人工标记清单（本版未接入）' });
+  return f;
+}
+function trendUp(ticker, field, n) {
+  const C = Hub.companies[ticker]; if (!C) return false;
+  const vals = TIMELINE.map(qk => C.byQ[qk]?.[field]).filter(v => v != null).slice(-n);
+  if (vals.length < n) return false;
+  for (let i = 1; i < vals.length; i++) if (vals[i] <= vals[i - 1]) return false;
+  return true;
+}
+function checkCapex2ndDeriv(chain) {
+  const members = GALAXY.filter(s => s.chain === chain && s.loaded);
+  const series = TIMELINE.map(qk => members.reduce((a, s) => a + (Hub.companies[s.ticker]?.byQ[qk]?.capex || 0), 0));
+  const yoy = series.map((v, i) => i >= 4 && series[i - 4] > 0 ? v / series[i - 4] - 1 : null).filter(v => v != null);
+  if (yoy.length < 4) return false;
+  const tail = yoy.slice(-3);
+  return tail[0] > tail[1] && tail[1] > tail[2] && tail[2] > 0;
+}
+
+/* ---- 渲染层接口 ---- */
+function getScores(sd) {
+  if (!sd.scoresByQ) return null;
+  const s = sd.scoresByQ[State.timeIdx] || sd.scoresByQ[TIME_LAST];
+  return s || null;
+}
+const starTemp = sd => {
+  const s = getScores(sd);
+  if (!s) return 0;
+  let wsum = 0, acc = 0;
+  s.forEach((v, i) => { if (v != null) { acc += v * State.weights[i]; wsum += State.weights[i]; } });
+  return wsum ? Math.round(acc / wsum) : 0;
+};
+
+/* ---- 布局：星座簇（黄金角螺旋，允许遮挡）---- */
+const CHAIN_COLOR = {
+  'AI芯片': '#ffd94e', '半导体设备': '#f3c67c', '云巨头': '#82c4ff', '软件SaaS': '#8fd7e6',
+  '互联网': '#a8bfff', '数据中心电力': '#e8e4f5', '金融': '#c8d8b0', '医疗': '#ffc4e0',
+  '消费': '#ffdba8', '能源工业': '#d9c8b8', '通信': '#b8c8d8', '自选': '#ffffff',
+};
+function layoutGalaxy() {
+  const D = sd => {
+    const sc = sd.scores || [0, 0, 0, 0, 0];
+    const maxTip = 0.25 + 2.10 * (Math.max(...sc.map(v => v ?? 0)) + 100) / 200;
+    return 2 * (2.35 * sd.mkt * maxTip * 1.06 + 0.4);
+  };
+  const n = SECTOR_ORDER.length;
+  const byChain = {};
+  GALAXY.forEach(sd => { (byChain[sd.chain] = byChain[sd.chain] || []).push(sd); });
+  SECTOR_ORDER.forEach((ch, ci) => {
+    const members = byChain[ch] || [];
+    const cx = (ci - (n - 1) / 2) * 26;
+    const cz = (ci % 2 ? -16 : 12) + (ci % 3) * 4;
+    let r = 0;
+    members.forEach((sd, i) => {
+      if (i > 0) r += (D(members[i - 1]) + D(sd)) * 0.28;
+      const a = i * 2.4;
+      sd.xoff = cx + Math.cos(a) * r;
+      sd.lane = cz + Math.sin(a) * r * 0.95;
+    });
+  });
+}
+
+/* ---- 加载调度：AI 链优先，其余后台 ---- */
+async function bootLoad() {
+  const priority = GALAXY.filter(s => ['AI芯片', '半导体设备', '云巨头'].includes(s.chain)).map(s => s.ticker);
+  const rest = GALAXY.filter(s => !priority.includes(s.ticker)).map(s => s.ticker);
+  for (const t of priority) { await Hub.loadCompany(t); }
+  for (const t of rest) { await Hub.loadCompany(t); }
+  UIStatus.note('全部加载完成');
+}
+async function retryFailed() {
+  const failed = GALAXY.filter(s => s.status.startsWith('✗'));
+  failed.forEach(s => { s.status = '待加载'; });
+  UIStatus.update();
+  for (const s of failed) await Hub.loadCompany(s.ticker);
+}
+function onCompanyLoaded(ticker) {
+  const sd = GALAXY.find(s => s.ticker === ticker);
+  layoutGalaxy();
+  if (typeof rebuildAll === 'function') rebuildAll();
+  if (State.focus && State.focus.sd.ticker === ticker && typeof setFocusHUD === 'function') setFocusHUD();
+  if (State.fmpKey) fmpLoadHistory(ticker);
+}
+
+/* ---- 加载状态 UI ---- */
+const UIStatus = {
+  el: null, noteEl: null,
+  init() {
+    this.el = document.getElementById('loadStatus');
+    this.noteEl = document.getElementById('loadNote');
+    this.update();
+  },
+  update() {
+    if (!this.el) return;
+    const done = GALAXY.filter(s => s.loaded).length;
+    const failedList = GALAXY.filter(s => s.status.startsWith('✗'));
+    this.el.innerHTML = `EDGAR 已加载 ${done}/${GALAXY.length}` +
+      (failedList.length ? ` · 失败 ${failedList.length} <span style="color:var(--series-1);cursor:pointer;pointer-events:auto" onclick="retryFailed()">重试</span>` : '');
+    if (failedList.length && this.noteEl) this.noteEl.textContent = '最近错误 ' + failedList[failedList.length - 1].ticker + ': ' + failedList[failedList.length - 1].status.slice(2, 80);
+  },
+  note(t) { if (this.noteEl) this.noteEl.textContent = t; },
+};
+
+/* ---- Mock（?mock=1 本地测试用：确定性合成数据，结构与 EDGAR 一致）---- */
+const MOCK_TAGS = ['Revenues', 'NetIncomeLoss', 'NetCashProvidedByUsedInOperatingActivities', 'PaymentsToAcquirePropertyPlantAndEquipment', 'GrossProfit', 'OperatingIncomeLoss', 'ShareBasedCompensation', 'WeightedAverageNumberOfDilutedSharesOutstanding', 'Assets', 'LiabilitiesCurrent', 'InventoryNet', 'LongTermDebtNoncurrent', 'CashAndCashEquivalentsAtCarryingValue'];
+function mockEntries(cikN, tag) {
+  const seed = cikN % 97;
+  const inst = ['Assets', 'LiabilitiesCurrent', 'InventoryNet', 'LongTermDebtNoncurrent', 'CashAndCashEquivalentsAtCarryingValue'].includes(tag);
+  const base = { Revenues: 8e9, NetIncomeLoss: 1.6e9, NetCashProvidedByUsedInOperatingActivities: 2e9, PaymentsToAcquirePropertyPlantAndEquipment: 5e8, GrossProfit: 4.5e9, OperatingIncomeLoss: 1.9e9, ShareBasedCompensation: 3e8, WeightedAverageNumberOfDilutedSharesOutstanding: 2e9, Assets: 6e10, LiabilitiesCurrent: 1.2e10, InventoryNet: 5e9, LongTermDebtNoncurrent: 8e9, CashAndCashEquivalentsAtCarryingValue: 1e10 }[tag];
+  const entries = [];
+  TIMEAXIS.forEach((qk, i) => {
+    const growth = 1 + 0.02 + (seed % 7) * 0.01;
+    const val = base * Math.pow(growth, i) * (1 + ((i * seed) % 10) * 0.006);
+    const y = +qk.slice(0, 4), q = +qk.slice(5);
+    const end = `${y}-${String(q * 3).padStart(2, '0')}-28`;
+    entries.push(inst
+      ? { end, val: Math.round(val), fy: y, fp: 'Q' + q, frame: `CY${y}Q${q}I` }
+      : { start: `${y}-${String(q * 3 - 2).padStart(2, '0')}-01`, end, val: Math.round(val), fy: y, fp: 'Q' + q, frame: `CY${y}Q${q}` });
+  });
+  return entries;
+}
+function mockFetch(url) {
+  if (url.includes('company_tickers')) {
+    const o = {}; GALAXY.forEach((s, i) => o[i] = { ticker: s.ticker, cik_str: 1000000 + i, title: s.name });
+    return Promise.resolve(o);
+  }
+  const mf = url.match(/companyfacts\/CIK(\d+)\.json/);
+  if (mf) {
+    const cikN = parseInt(mf[1], 10);
+    const gaap = {};
+    MOCK_TAGS.forEach(tag => {
+      gaap[tag] = { units: { [tag.includes('Shares') ? 'shares' : 'USD']: mockEntries(cikN, tag) } };
+    });
+    return Promise.resolve({ facts: { 'us-gaap': gaap } });
+  }
+  const m = url.match(/CIK(\d+)\/us-gaap\/(\w+)\.json/);
+  if (!m) return Promise.reject(new Error('mock 404'));
+  const cikN = parseInt(m[1], 10), tag = m[2];
+  if (MOCK_TAGS.indexOf(tag) < 0) return Promise.reject(new Error('mock 404'));
+  return Promise.resolve({ units: { [tag.includes('Shares') ? 'shares' : 'USD']: mockEntries(cikN, tag) } });
+}
+if (MOCK) { GALAXY.forEach((s, i) => { PRICE.snapshot[s.ticker] = { p: 50 + (i * 7) % 300 }; s.chg = ((i * 13) % 9) - 4; }); }
+
+layoutGalaxy();
+
+/* 温度→颜色（黄绿 ↔ 黄红）*/
+function tempHue(t) { return t >= 0 ? 55 - t / 100 * 37 : 55 + (-t) / 100 * 40; }
+function tempColorCSS(t, s = 88, l = 55) { return `hsl(${tempHue(t)} ${s}% ${l}%)`; }
+
+/* =====================================================================
+   渲染层
+   ===================================================================== */
+const THREE_OK = (typeof THREE !== 'undefined');
+let rebuildAll = () => {}, setFocusHUD = () => {};
+if (!THREE_OK) {
+  document.getElementById('scene').style.display = 'none';
+  const fb = document.createElement('div');
+  fb.style.cssText = 'position:fixed;left:50%;top:44%;transform:translate(-50%,-50%);z-index:5;text-align:center;max-width:440px;';
+  fb.innerHTML = `<div style="font-size:64px">⭐</div>
+    <div style="color:#c3c2b7;font-size:13px;line-height:1.8;margin-top:10px">
+    3D 引擎（Three.js CDN）在当前预览环境被拦截，星体暂不可见。<br>
+    <b style="color:#fff">下载文件后用浏览器打开</b>即可看到完整 3D 星系。<br>估值引擎与下钻面板不受影响：</div>
+    <div id="fbBtns" style="display:flex;gap:8px;flex-wrap:wrap;justify-content:center;margin-top:14px"></div>`;
+  document.body.appendChild(fb);
+  const mk = (name, i) => {
+    const b = document.createElement('button'); b.textContent = name;
+    b.style.cssText = 'padding:6px 12px;border-radius:99px;border:1px solid rgba(255,255,255,.15);background:transparent;color:#c3c2b7;cursor:pointer;font-size:12px';
+    b.onclick = () => openPanel(i);
+    fb.querySelector('#fbBtns').appendChild(b);
+  };
+  LAYERS.forEach((n, i) => mk('角' + (i + 1) + ' ' + n, i)); mk('红旗面板', 5); mk('宏观云海', 6);
+}
+if (THREE_OK) {
+const canvas = document.getElementById('scene');
+const renderer = new THREE.WebGLRenderer({ canvas, antialias: true, alpha: true });
+renderer.setPixelRatio(Math.min(devicePixelRatio, 2));
+renderer.shadowMap.enabled = true;
+renderer.shadowMap.type = THREE.PCFSoftShadowMap;
+const scene = new THREE.Scene();
+scene.background = null;   // 露出 CSS 暮色渐变天空
+scene.fog = new THREE.Fog('#282550', 130, 1000);
+const camera = new THREE.PerspectiveCamera(46, 1, 0.1, 1100);
+
+/* 相机：目标 + 偏移，支持平移/缩放/焦点飞行 */
+const camTarget = new THREE.Vector3(-2, 1.4, 0);
+const camGoal = camTarget.clone();
+const camOffset = new THREE.Vector3(0, 12, 64);
+
+scene.add(new THREE.AmbientLight(0xf2ecff, 0.62));
+scene.add(new THREE.HemisphereLight(0xcbb8ff, 0x342858, 0.55));
+const key = new THREE.DirectionalLight(0xfff2d8, 1.05);
+key.position.set(10, 16, 10);
+key.castShadow = true;
+key.shadow.mapSize.set(2048, 2048);
+key.shadow.camera.left = -35; key.shadow.camera.right = 35;
+key.shadow.camera.top = 25; key.shadow.camera.bottom = -25;
+key.shadow.camera.far = 80;
+scene.add(key);
+const rim = new THREE.PointLight(0x6688ff, 0.55, 90); rim.position.set(-14, 6, -8); scene.add(rim);
+
+/* 卡通三段光影 */
+const rampData = new Uint8Array([70, 150, 255]);
+const gradientMap = new THREE.DataTexture(rampData, 3, 1, THREE.LuminanceFormat);
+gradientMap.minFilter = gradientMap.magFilter = THREE.NearestFilter;
+gradientMap.needsUpdate = true;
+
+/* 星空 */
+(() => {
+  const g = new THREE.BufferGeometry(); const N = 1600; const pos = new Float32Array(N * 3);
+  for (let i = 0; i < N; i++) {
+    const r = 150 + Math.random() * 220, th = Math.random() * Math.PI * 2, ph = Math.acos(2 * Math.random() - 1);
+    pos[i*3] = r * Math.sin(ph) * Math.cos(th); pos[i*3+1] = r * Math.cos(ph) * 0.6; pos[i*3+2] = r * Math.sin(ph) * Math.sin(th);
+  }
+  g.setAttribute('position', new THREE.BufferAttribute(pos, 3));
+  scene.add(new THREE.Points(g, new THREE.PointsMaterial({ color: 0x9aa4c8, size: 0.1, sizeAttenuation: true, transparent: true, opacity: .8 })));
+})();
+
+function tempColorHex(t, s = 0.85, l = 0.55) { return new THREE.Color().setHSL(tempHue(t) / 360, s, l); }
+
+/* ---- 光晕纹理 ---- */
+function haloTexture(cssColor) {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const x = c.getContext('2d');
+  const g = x.createRadialGradient(128, 128, 10, 128, 128, 128);
+  g.addColorStop(0, cssColor); g.addColorStop(0.45, cssColor.replace(')', ' / 0.35)'));
+  g.addColorStop(1, 'rgba(0,0,0,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 256, 256);
+  return new THREE.CanvasTexture(c);
+}
+
+/* ---- 名牌纹理（ticker + 温度，贴在星体上）---- */
+function nameTexture(ticker, temp, chg) {
+  const c = document.createElement('canvas'); c.width = 512; c.height = 288;
+  const x = c.getContext('2d');
+  x.textAlign = 'center';
+  x.font = '800 100px system-ui, sans-serif';
+  x.lineWidth = 14; x.strokeStyle = 'rgba(10,10,16,.9)'; x.strokeText(ticker, 256, 104);
+  x.fillStyle = '#ffffff'; x.fillText(ticker, 256, 104);
+  const tt = temp == null ? '加载中…' : '温度 ' + (temp > 0 ? '+' : '') + temp;
+  x.font = '700 58px system-ui, sans-serif';
+  x.lineWidth = 10; x.strokeText(tt, 256, 178);
+  x.fillStyle = temp == null ? '#9a9aa8' : tempColorCSS(temp, 90, 62); x.fillText(tt, 256, 178);
+  if (chg !== undefined && chg != null) {
+    const ct = '今日 ' + (chg >= 0 ? '+' : '') + chg.toFixed(1) + '%';
+    x.font = '700 52px system-ui, sans-serif';
+    x.lineWidth = 9; x.strokeText(ct, 256, 246);
+    x.fillStyle = chg >= 0 ? '#2ec55e' : '#f05555'; x.fillText(ct, 256, 246);
+  }
+  return new THREE.CanvasTexture(c);
+}
+
+/* ---- 星形 ---- */
+/* 角长极度夸张：得分 -100..+100 → 角长 0.25..2.35 倍基础半径（跨度是上版的 3 倍）*/
+const TIPF = sc => 0.25 + 2.10 * (sc + 100) / 200;
+/* 星形轮廓随胖瘦形变：瘦 = 直线尖角星；胖 = 内圈变大 + 边线外鼓成曲线 + 腿变粗，趋近球体 */
+function starShapeFromScores(scores, base, fat) {
+  const shape = new THREE.Shape();
+  const valley = base * (0.30 + 0.52 * fat);
+  const pts = [];
+  for (let i = 0; i < 5; i++) {
+    const aTip = -Math.PI / 2 + i * (Math.PI * 2 / 5);
+    const aVal = aTip + Math.PI / 5;
+    const rTip = base * TIPF(scores[i]);
+    pts.push([Math.cos(aTip) * rTip, Math.sin(aTip) * rTip]);
+    pts.push([Math.cos(aVal) * valley, Math.sin(aVal) * valley]);
+  }
+  shape.moveTo(pts[0][0], pts[0][1]);
+  for (let i = 0; i < 10; i++) {
+    const [x2, y2] = pts[(i + 1) % 10];
+    const [x1, y1] = pts[i];
+    const mx = (x1 + x2) / 2, my = (y1 + y2) / 2;
+    const bulge = 1 + fat * 0.55;              // 越胖边线越外鼓
+    shape.quadraticCurveTo(mx * bulge, my * bulge, x2, y2);
+  }
+  shape.closePath();
+  return shape;
+}
+
+/* ---- 星体工厂 ---- */
+const stars = [];
+function makeStar(sd) {
+  const group = new THREE.Group();
+  const spinner = new THREE.Group();       // 自转层（名牌不转）
+  group.add(spinner);
+  const st = { sd, group, spinner, body: null, outline: null, halo: null, name: null, spin: 0.12 + Math.random() * 0.15 };
+  group.position.set(timeX(TIME_LAST) + sd.xoff, 0, sd.lane);
+  scene.add(group);
+  stars.push(st);
+  return st;
+}
+/* 海拔 = 温度，幂律放大（指数调小+系数调大 → 星星之间高度差进一步拉开）*/
+function altitude(temp) {
+  const v = 1 + Math.sign(temp) * Math.pow(Math.abs(temp) / 100, 0.6) * 21;
+  return Math.max(v, -5);   // 最低沉入云海
+}
+
+function rebuildStar(st) {
+  const sd = st.sd;
+  const gsRaw = getScores(sd);
+  const ghost = !sd.loaded;
+  const gs = (gsRaw || [null, null, null, null, null]).map(v => v ?? -55);
+  const temp = starTemp(sd);
+  const base = 2.35 * sd.mkt;
+  const t01 = (temp + 100) / 200;
+  const fat = Math.pow(t01, 1.5);   // 胖瘦差异格外放大：低温≈纸片，高温≈气球
+  [st.body, st.outline].forEach(m => { if (m) { st.spinner.remove(m); m.geometry.dispose(); } });
+  const geo = new THREE.ExtrudeGeometry(starShapeFromScores(gs, base, fat), {
+    depth: (0.08 + fat * 3.0) * sd.mkt,      // 中心厚度随胖瘦：纸片 ↔ 气球
+    bevelEnabled: true,
+    bevelThickness: (0.06 + fat * 0.95) * sd.mkt,
+    bevelSize: (0.05 + fat * 0.24) * sd.mkt,
+    bevelSegments: 8, curveSegments: 16, steps: 1,
+  });
+  geo.center();
+  // 星体底色 = 行业色（浅色系，避开红绿）；未加载 = 灰色幽灵星
+  const bodyCol = ghost
+    ? new THREE.Color('#6a6a78')
+    : new THREE.Color(CHAIN_COLOR[sd.chain] || '#ffd94e').lerp(tempColorHex(temp, 0.9, 0.55), 0.22);
+  st.body = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+    color: bodyCol, roughness: 0.3, metalness: 0.05,            // 糖果釉面质感
+    emissive: bodyCol.clone().multiplyScalar(0.16),
+  }));
+  st.body.castShadow = true;
+  st.body.userData.star = st;
+  st.spinner.add(st.body);
+  st.outline = new THREE.Mesh(geo.clone(), new THREE.MeshBasicMaterial({ color: 0x14141c, side: THREE.BackSide }));
+  st.outline.scale.setScalar(1.045);
+  st.spinner.add(st.outline);
+  // 光晕
+  if (st.halo) { st.group.remove(st.halo); st.halo.material.map.dispose(); st.halo.material.dispose(); }
+  st.halo = new THREE.Sprite(new THREE.SpriteMaterial({
+    map: haloTexture(`hsl(${tempHue(temp)} 90% 55%)`), transparent: true,
+    opacity: 0.3 + t01 * 0.32, depthWrite: false,
+  }));
+  st.halo.scale.setScalar((8 + t01 * 5.5) * sd.mkt);
+  st.group.add(st.halo);
+  // 名牌（贴在星体前方，始终面向镜头；含今日涨跌）
+  if (st.name) { st.group.remove(st.name); st.name.material.map.dispose(); st.name.material.dispose(); }
+  // 涨跌气泡（今日涨=绿 / 跌=红，透明度 20%）——半径包住最长的腿
+  if (st.bubble) { st.group.remove(st.bubble); st.bubble.geometry.dispose(); st.bubble.material.dispose(); }
+  const maxTip = Math.max(...gs.map(TIPF));
+  const bubbleR = base * maxTip * 1.06 + 0.4;
+  // 名牌挪到气泡外面（上方悬浮）
+  st.name = new THREE.Sprite(new THREE.SpriteMaterial({ map: nameTexture(sd.ticker, ghost ? null : temp, (!ghost && priceOf(sd.ticker) != null) ? sd.chg : undefined), transparent: true, depthTest: false, opacity: ghost ? 0.55 : 1 }));
+  st.name.scale.set(3.4 * Math.max(sd.mkt, 0.55), 1.9 * Math.max(sd.mkt, 0.55), 1);
+  st.name.position.set(0, bubbleR + 1.1, 0);
+  st.group.add(st.name);
+  st.bubble = new THREE.Mesh(new THREE.SphereGeometry(bubbleR, 36, 24),
+    new THREE.MeshPhongMaterial({
+      color: (sd.chg >= 0 ? 0x18b855 : 0xd03b3b),
+      transparent: true, opacity: 0.14, depthWrite: false, shininess: 120,
+      specular: 0xffffff,
+    }));
+  st.bubble.raycast = () => {};   // 气泡不挡点击
+  st.bubble.renderOrder = 1;
+  st.group.add(st.bubble);
+  // 位置：沿地势行走（横向目标位置由状态决定，高度每帧取脚下地形，见主循环）
+  st.bubbleR = bubbleR;
+  st.targetX = timeX(State.timeIdx) + sd.xoff;
+  st.ownLift = 1.4 + Math.sign(temp) * Math.pow(Math.abs(temp) / 100, 0.7) * 10;   // 高估飞得高、低估贴云海，落差拉大
+  // 倾斜（立体感：让侧面吃到光）
+  st.group.rotation.x = -0.22;
+}
+GALAXY.forEach(sd => rebuildStar(makeStar(sd)));
+makeStarForNew = sd => { rebuildStar(makeStar(sd)); };   // 搜索加载的新星
+
+/* 星座连线：同一行业的星星用同色淡光线串起来（星图式），把"一家人"的感觉画出来 */
+const constellationLines = [];
+(() => {
+  const byChain = {};
+  stars.forEach(st => { (byChain[st.sd.chain] = byChain[st.sd.chain] || []).push(st); });
+  Object.entries(byChain).forEach(([ch, ms]) => {
+    if (ms.length < 2) return;
+    const geo = new THREE.BufferGeometry();
+    geo.setAttribute('position', new THREE.BufferAttribute(new Float32Array(ms.length * 3), 3));
+    const line = new THREE.Line(geo, new THREE.LineBasicMaterial({
+      color: new THREE.Color(CHAIN_COLOR[ch] || '#ffffff'), transparent: true, opacity: 0.5,
+    }));
+    line.userData.members = ms;
+    scene.add(line); constellationLines.push(line);
+  });
+})();
+
+/* 产业链车道标牌（跟随舰队移动）+ 时间轴年份刻度（钉在地形上） */
+const chainSprites = [];
+(() => {
+  const chains = {};
+  GALAXY.forEach(sd => { (chains[sd.chain] = chains[sd.chain] || []).push(sd); });
+  Object.entries(chains).forEach(([name, members]) => {
+    const c = document.createElement('canvas'); c.width = 512; c.height = 96;
+    const x = c.getContext('2d');
+    x.textAlign = 'center'; x.font = '500 40px system-ui, sans-serif';
+    x.fillStyle = 'rgba(210,208,230,.8)'; x.fillText(name, 256, 60);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
+    sp.scale.set(5.4, 1.05, 1);
+    sp.userData.lane = members[0].lane;
+    sp.userData.xoff = members.reduce((a, s) => a + s.xoff, 0) / members.length;
+    scene.add(sp); chainSprites.push(sp);
+  });
+})();
+function updateChainSprites() {
+  const fx = timeX(State.timeIdx);
+  const groundY = -5.4 + terrainH(fx);
+  chainSprites.forEach(sp => {
+    sp.position.set(fx + sp.userData.xoff, groundY + 14, sp.userData.lane);
+  });
+}
+(() => {   // 年份刻度
+  [[0, '2022'], [2, '2023'], [4, '2024'], [6, '2025'], [9, '2026']].forEach(([idx, label]) => {
+    const c = document.createElement('canvas'); c.width = 256; c.height = 96;
+    const x = c.getContext('2d');
+    x.textAlign = 'center'; x.font = '600 52px system-ui, sans-serif';
+    x.fillStyle = 'rgba(190,195,225,.9)'; x.fillText(label, 128, 64);
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: new THREE.CanvasTexture(c), transparent: true, depthWrite: false }));
+    sp.scale.set(4.6, 1.7, 1);
+    sp.position.set(timeX(idx), -5.4 + terrainH(timeX(idx)) + 1.6, 16);
+    scene.add(sp);
+  });
+})();
+
+/* ---- 焦点星的角热点 + 角标签 ---- */
+const tipAnchors = [], tipHits = [];
+function buildTips(st) {
+  tipHits.forEach(h => st0 => {});
+  while (tipHits.length) { const h = tipHits.pop(); h.parent && h.parent.remove(h); }
+  tipAnchors.length = 0;
+  const base = 2.35 * st.sd.mkt;
+  const gs = (getScores(st.sd) || [null, null, null, null, null]).map(v => v ?? -55);
+  const temp = starTemp(st.sd);
+  const fat = Math.pow((temp + 100) / 200, 1.5);
+  // 星体轮廓外缘：胖星的内圈+鼓边可能比短角还长，把手必须放在两者较大值之外
+  const bodyEdge = (0.30 + 0.52 * fat) * (1 + 0.55 * fat);
+  for (let i = 0; i < 5; i++) {
+    const r = base * Math.max(TIPF(gs[i]) + 0.12, bodyEdge + 0.22);
+    const a = -Math.PI / 2 + i * (Math.PI * 2 / 5);
+    const anchor = new THREE.Object3D();
+    anchor.position.set(Math.cos(a) * (r + 0.8), Math.sin(a) * (r + 0.8), 0);
+    st.spinner.add(anchor); tipAnchors.push(anchor);
+    // 点击把手：一闪一闪的发光小白点
+    const knob = new THREE.Mesh(new THREE.SphereGeometry(Math.max(0.28, 0.36 * st.sd.mkt), 16, 12),
+      new THREE.MeshBasicMaterial({ color: 0xffffff, transparent: true }));
+    const kGlow = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTexture('hsl(0 0% 100%)'), transparent: true, opacity: 0.9, depthWrite: false }));
+    kGlow.scale.setScalar(2.2); knob.add(kGlow);
+    knob.userData.glow = kGlow;
+    knob.position.set(Math.cos(a) * r, Math.sin(a) * r, 0);
+    knob.userData.layer = i;
+    st.spinner.add(knob); tipHits.push(knob);
+  }
+}
+
+/* ---- 环绕火花（跟随焦点星，红旗由 EDGAR 数据自动检测）---- */
+const sparks = [];
+function rebuildSparks() {
+  while (sparks.length) scene.remove(sparks.pop());
+  const st = State.focus; if (!st) return;
+  (st.sd.flags || []).filter(f => f.lit).forEach((f, idx) => {
+    const m = new THREE.Mesh(new THREE.OctahedronGeometry(0.34), new THREE.MeshBasicMaterial({ color: 0xd03b3b }));
+    const glow = new THREE.Sprite(new THREE.SpriteMaterial({ map: haloTexture('hsl(2 70% 55%)'), transparent: true, opacity: 0.8, depthWrite: false }));
+    glow.scale.setScalar(1.8); m.add(glow);
+    m.userData.flag = f;
+    m.userData.orbit = { center: st.group, r: 7.4 + idx * 0.6, speed: 0.5 + idx * 0.17, phase: idx * 2.2, tilt: 0.7 + idx * 0.5 };
+    scene.add(m); sparks.push(m);
+  });
+}
+
+/* ---- 云海 ---- */
+/* 梦幻粉彩云海（固定舞台，高度不随时间变）：粉/蓝/紫/奶油渐变顶点色 + 柔和光影 */
+function pastelize(geo) {
+  const pos = geo.attributes.position;
+  const colors = new Float32Array(pos.count * 3);
+  const pal = [new THREE.Color('#ee7fae'), new THREE.Color('#5f96e8'), new THREE.Color('#9c74d8'), new THREE.Color('#f2b984')];
+  for (let i = 0; i < pos.count; i++) {
+    const x = pos.getX(i), y = pos.getY(i);
+    const n = Math.sin(x * 0.045) + Math.cos(y * 0.06) + Math.sin((x + y) * 0.025) * 1.3;
+    const tt = (n + 3.3) / 6.6 * (pal.length - 1);
+    const i0 = Math.max(0, Math.min(Math.floor(tt), pal.length - 2));
+    const c = pal[i0].clone().lerp(pal[i0 + 1], tt - i0);
+    colors[i * 3] = c.r; colors[i * 3 + 1] = c.g; colors[i * 3 + 2] = c.b;
+  }
+  geo.setAttribute('color', new THREE.BufferAttribute(colors, 3));
+}
+/* 边缘羽化贴图：云层四周渐隐，消除平面硬边分界线 */
+function edgeAlphaTex() {
+  const c = document.createElement('canvas'); c.width = c.height = 256;
+  const x = c.getContext('2d');
+  const img = x.createImageData(256, 256);
+  for (let j = 0; j < 256; j++) for (let i = 0; i < 256; i++) {
+    const fx = Math.min(1, Math.min(i, 255 - i) / 88);
+    const fy = Math.min(1, Math.min(j, 255 - j) / 88);
+    const a = Math.pow(fx * fy, 1.4) * 255;
+    const idx = (j * 256 + i) * 4;
+    img.data[idx] = img.data[idx + 1] = img.data[idx + 2] = a; img.data[idx + 3] = 255;
+  }
+  x.putImageData(img, 0, 0);
+  return new THREE.CanvasTexture(c);
+}
+let cloud, cloudBack;
+(() => {
+  const fade = edgeAlphaTex();
+  const geo = new THREE.PlaneGeometry(1700, 320, 130, 40);
+  pastelize(geo);
+  cloud = new THREE.Mesh(geo, new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 0.95, metalness: 0, transparent: true, opacity: 0.15,
+    alphaMap: fade, emissive: 0x584a80, emissiveIntensity: 0.18, depthWrite: false,
+  }));
+  cloud.receiveShadow = true;
+  cloud.rotation.x = -Math.PI / 2;
+  cloud.position.z = -4;
+  cloud.position.y = -5.4;
+  scene.add(cloud);
+  // 远景云层（增加纵深）
+  const geo2 = new THREE.PlaneGeometry(2400, 520, 70, 26);
+  pastelize(geo2);
+  cloudBack = new THREE.Mesh(geo2, new THREE.MeshStandardMaterial({
+    vertexColors: true, roughness: 1, metalness: 0, transparent: true, opacity: 0.1,
+    alphaMap: fade, emissive: 0x584a80, emissiveIntensity: 0.12, depthWrite: false,
+  }));
+  cloudBack.rotation.x = -Math.PI / 2;
+  cloudBack.position.set(0, -3.4, -95);
+  scene.add(cloudBack);
+  updateCloudMacro();
+})();
+function updateCloudMacro() {
+  // 高度固定；只有云色随信用压力：纯净粉彩 ↔ 暗紫风暴
+  const m = macroNow();
+  const tint = new THREE.Color('#ffffff').lerp(new THREE.Color('#6e5a91'), m.stress);
+  cloud.material.color.copy(tint);
+  cloudBack.material.color.copy(tint);
+}
+function animateCloud(t) {
+  const stress = macroNow().stress;
+  const wave = (mesh, speed, ampScale) => {
+    const pos = mesh.geometry.attributes.position;
+    for (let i = 0; i < pos.count; i++) {
+      const x = pos.getX(i), y = pos.getY(i);
+      pos.setZ(i, cloudHeightLocal(x, y, t * speed, stress) * ampScale);
+    }
+    pos.needsUpdate = true;
+    mesh.geometry.computeVertexNormals();
+  };
+  wave(cloud, 1, 1);
+  wave(cloudBack, 0.5, 1.25);
+}
+/* 天空闪星（参考图里的四芒星火花）*/
+const twinkles = [];
+(() => {
+  const c = document.createElement('canvas'); c.width = c.height = 128;
+  const x = c.getContext('2d');
+  const g = x.createRadialGradient(64, 64, 2, 64, 64, 62);
+  g.addColorStop(0, 'rgba(255,255,255,.9)'); g.addColorStop(0.25, 'rgba(255,240,255,.25)'); g.addColorStop(1, 'rgba(255,255,255,0)');
+  x.fillStyle = g; x.fillRect(0, 0, 128, 128);
+  x.fillStyle = '#ffffff';
+  x.beginPath(); x.moveTo(64, 6); x.lineTo(72, 64); x.lineTo(64, 122); x.lineTo(56, 64); x.closePath(); x.fill();
+  x.beginPath(); x.moveTo(18, 64); x.lineTo(64, 57); x.lineTo(110, 64); x.lineTo(64, 71); x.closePath(); x.fill();
+  const tex = new THREE.CanvasTexture(c);
+  for (let i = 0; i < 16; i++) {
+    const sp = new THREE.Sprite(new THREE.SpriteMaterial({ map: tex, transparent: true, depthWrite: false }));
+    const s = 1.2 + (i % 5) * 0.55;
+    sp.scale.set(s, s, 1);
+    sp.position.set(-90 + i * 12 + (i % 3) * 4, 8 + (i * 7) % 18, -30 - (i % 4) * 12);
+    sp.userData.tw = { speed: 0.6 + (i % 4) * 0.35, phase: i * 1.7 };
+    scene.add(sp); twinkles.push(sp);
+  }
+})();
+
+/* ---- 角标签（HTML 投影，跟随焦点星）---- */
+const tipLabelHost = document.getElementById('tipLabels');
+const tipLabelEls = LAYERS.map((name, i) => {
+  const el = document.createElement('div');
+  el.className = 'tip-label';
+  el.innerHTML = `${name}<span class="sc"></span>`;
+  el.addEventListener('click', () => openPanel(i));
+  tipLabelHost.appendChild(el);
+  return el;
+});
+function updateTipLabels() {
+  const v = new THREE.Vector3();
+  const foc = State.focus;
+  const zoomedOut = camOffset.length() > 42;   // 全景模式隐藏角标签，保持画面干净
+  tipAnchors.forEach((a, i) => {
+    a.getWorldPosition(v); v.project(camera);
+    const el = tipLabelEls[i];
+    if (zoomedOut || v.z > 1) { el.style.display = 'none'; return; }
+    el.style.display = 'block';
+    el.style.left = (v.x * 0.5 + 0.5) * innerWidth + 'px';
+    el.style.top = (-v.y * 0.5 + 0.5) * innerHeight + 'px';
+    const fs = getScores(foc.sd) || [];
+    const sv = fs[i];
+    el.querySelector('.sc').textContent = sv == null ? '—' : (sv > 0 ? '+' : '') + sv;
+  });
+}
+
+/* ---- 焦点切换 ---- */
+function setFocus(st) {
+  State.focus = st;
+  buildTips(st);
+  rebuildSparks();
+  camGoal.copy(st.group.position);
+  setFocusHUD();
+  if (!st.sd.loaded && st.sd.status === '待加载') Hub.loadCompany(st.sd.ticker);   // 点谁先加载谁
+}
+setFocusHUD = function () {
+  const st = State.focus;
+  document.getElementById('hTicker').textContent = st.sd.ticker;
+  document.getElementById('hChain').textContent = st.sd.chain + (st.sd.loaded ? ' · EDGAR 已加载' : ' · ' + st.sd.status);
+  refreshHUD();
+};
+
+/* ---- 交互：平移 / 缩放 / 点击 ---- */
+let dragging = false, orbiting = false, moved = 0, px = 0, py = 0;
+canvas.addEventListener('contextmenu', e => e.preventDefault());
+canvas.addEventListener('pointerdown', e => {
+  moved = 0; px = e.clientX; py = e.clientY;
+  if (e.button === 2 || e.shiftKey) { orbiting = true; }   // 右键/Shift+拖 = 旋转视角
+  else dragging = true;
+  canvas.classList.add('dragging');
+});
+addEventListener('pointerup', () => { dragging = false; orbiting = false; canvas.classList.remove('dragging'); });
+addEventListener('pointermove', e => {
+  const dx = e.clientX - px, dy = e.clientY - py;
+  if (dragging) {
+    moved += Math.abs(dx) + Math.abs(dy);
+    const k = camOffset.length() * 0.0016;
+    // 地图式平移：左右 = 沿地面横移；上下 = 沿视线方向前后推（拖下 = 把近处星星拉到眼前）
+    const fwd = camera.getWorldDirection(new THREE.Vector3()); fwd.y = 0; fwd.normalize();
+    const right = new THREE.Vector3().crossVectors(fwd, new THREE.Vector3(0, 1, 0)).normalize();
+    camGoal.addScaledVector(right, -dx * k);
+    camGoal.addScaledVector(fwd, dy * k * 1.6);   // 拖上=画面向里推进，拖下=往回拉
+    camGoal.x = Engine.clamp(camGoal.x, -420, 420);
+    camGoal.z = Engine.clamp(camGoal.z, -220, 220);
+    px = e.clientX; py = e.clientY;
+  } else if (orbiting) {
+    moved += Math.abs(dx) + Math.abs(dy);
+    const sph = new THREE.Spherical().setFromVector3(camOffset);
+    sph.theta -= dx * 0.005;
+    sph.phi = Engine.clamp(sph.phi + dy * 0.004, 0.2, 1.5);
+    camOffset.setFromSpherical(sph);
+    px = e.clientX; py = e.clientY;
+  }
+  hoverCheck(e);
+});
+canvas.addEventListener('wheel', e => {
+  e.preventDefault();
+  const s = Math.exp(e.deltaY * 0.0011);
+  camOffset.multiplyScalar(s);
+  const len = camOffset.length();
+  if (len < 7) camOffset.setLength(7);
+  if (len > 430) camOffset.setLength(430);
+}, { passive: false });
+
+/* 左下角视角球：拖动 = 轨道旋转 */
+(() => {
+  const ball = document.getElementById('orbitBall');
+  let bd = false, bx = 0, by = 0;
+  ball.addEventListener('pointerdown', e => {
+    bd = true; bx = e.clientX; by = e.clientY;
+    ball.classList.add('grabbing'); ball.setPointerCapture(e.pointerId);
+    e.stopPropagation();
+  });
+  ball.addEventListener('pointermove', e => {
+    if (!bd) return;
+    const sph = new THREE.Spherical().setFromVector3(camOffset);
+    sph.theta -= (e.clientX - bx) * 0.008;
+    sph.phi = Engine.clamp(sph.phi + (e.clientY - by) * 0.006, 0.2, 1.5);
+    camOffset.setFromSpherical(sph);
+    bx = e.clientX; by = e.clientY;
+  });
+  ball.addEventListener('pointerup', () => { bd = false; ball.classList.remove('grabbing'); });
+  document.getElementById('resetView').addEventListener('click', () => {
+    camOffset.set(0, 12, 64);                                   // 恢复默认俯仰与距离
+    if (State.focus) camGoal.copy(State.focus.group.position);  // 回到焦点星
+  });
+})();
+const ray = new THREE.Raycaster(); const mouse = new THREE.Vector2();
+function castAt(e, targets) {
+  mouse.set(e.clientX / innerWidth * 2 - 1, -(e.clientY / innerHeight) * 2 + 1);
+  ray.setFromCamera(mouse, camera);
+  return ray.intersectObjects(targets, false);
+}
+const tooltip = document.getElementById('tooltip');
+const bodies = () => stars.map(s => s.body);
+function hoverCheck(e) {
+  const hitSpark = castAt(e, sparks)[0];
+  if (hitSpark) {
+    const f = hitSpark.object.userData.flag;
+    tooltip.style.display = 'block';
+    tooltip.style.left = (e.clientX + 14) + 'px'; tooltip.style.top = (e.clientY + 10) + 'px';
+    tooltip.innerHTML = `<b>⚠ 红旗 · ${f.name}</b>${f.ev}`;
+    canvas.style.cursor = 'pointer'; return;
+  }
+  tooltip.style.display = 'none';
+  const over = castAt(e, [...tipHits, ...bodies()])[0];
+  canvas.style.cursor = over ? 'pointer' : (dragging ? 'grabbing' : 'grab');
+}
+canvas.addEventListener('click', e => {
+  if (moved > 6) return;                       // 拖动不算点击
+  const tipHit = castAt(e, tipHits)[0];
+  if (tipHit) { openPanel(tipHit.object.userData.layer); return; }
+  const sparkHit = castAt(e, sparks)[0];
+  if (sparkHit) { openPanel(5); return; }
+  const bodyHit = castAt(e, bodies())[0];
+  if (bodyHit) { setFocus(bodyHit.object.userData.star); return; }
+  const cloudHit = castAt(e, [cloud])[0];
+  if (cloudHit) openPanel(6);
+});
+
+/* ---- 全量重建（权重变化时）---- */
+rebuildAll = function () {
+  updateCloudMacro();
+  stars.forEach(rebuildStar);
+  if (State.focus) { buildTips(State.focus); rebuildSparks(); }
+  updateChainSprites();
+  if (State.focus) camGoal.set(State.focus.targetX, State.focus.group.position.y, State.focus.group.position.z);
+};
+updateChainSprites();
+
+/* ---- 小地图（顶部中央）：地形剖面 + 星点 + 相机视野，点击跳转 ---- */
+const mmCanvas = document.getElementById('minimap');
+const mmCtx = mmCanvas ? mmCanvas.getContext('2d') : null;
+const MM = { W: 560, H: 150, xr: 440, zr: 70, split: 100 };
+function worldToMap(x, z) { return [(x / MM.xr * 0.5 + 0.5) * MM.W, (z / MM.zr * 0.5 + 0.5) * MM.split]; }
+function drawMinimap() {
+  if (!mmCtx) return;
+  const c = mmCtx; c.clearRect(0, 0, MM.W, MM.H);
+  c.strokeStyle = 'rgba(255,255,255,.12)'; c.beginPath(); c.moveTo(0, MM.split); c.lineTo(MM.W, MM.split); c.stroke();
+  // 底部：时间轴地形剖面
+  c.strokeStyle = 'rgba(200,170,255,.85)'; c.lineWidth = 2; c.beginPath();
+  for (let px = 0; px <= MM.W; px += 6) {
+    const wx = (px / MM.W - .5) * 2 * MM.xr;
+    const y = MM.H - 5 - (terrainH(wx) + 32) / 64 * (MM.H - MM.split - 10);
+    px === 0 ? c.moveTo(px, y) : c.lineTo(px, y);
+  }
+  c.stroke(); c.lineWidth = 1;
+  // 当前日期竖线
+  const [mfx] = worldToMap(timeX(State.timeIdx), 0);
+  c.strokeStyle = 'rgba(255,140,60,.9)'; c.beginPath(); c.moveTo(mfx, MM.split + 2); c.lineTo(mfx, MM.H - 2); c.stroke();
+  // 上部：星点（行业色）
+  stars.forEach(st => {
+    const [mx, my] = worldToMap(st.group.position.x, st.group.position.z);
+    c.fillStyle = st.sd.loaded ? (CHAIN_COLOR[st.sd.chain] || '#fff') : 'rgba(150,150,165,.5)';
+    c.beginPath(); c.arc(mx, my, st.sd === State.focus?.sd ? 4.5 : 2.6, 0, 7); c.fill();
+  });
+  // 相机视野框
+  const [cx2, cy2] = worldToMap(camTarget.x, camTarget.z);
+  c.strokeStyle = 'rgba(255,255,255,.85)';
+  c.strokeRect(cx2 - 15, cy2 - 9, 30, 18);
+}
+if (mmCanvas) mmCanvas.addEventListener('click', e => {
+  const r = mmCanvas.getBoundingClientRect();
+  const px = (e.clientX - r.left) / r.width * MM.W, py = (e.clientY - r.top) / r.height * MM.H;
+  camGoal.x = Engine.clamp((px / MM.W - .5) * 2 * MM.xr, -420, 420);
+  if (py <= MM.split) camGoal.z = Engine.clamp((py / MM.split - .5) * 2 * MM.zr, -220, 220);
+});
+
+/* ---- 主循环 ---- */
+function resize() {
+  renderer.setSize(innerWidth, innerHeight, false);
+  camera.aspect = innerWidth / innerHeight; camera.updateProjectionMatrix();
+}
+addEventListener('resize', resize); resize();
+const clock = new THREE.Clock();
+let prevT = 0;
+function loop() {
+  requestAnimationFrame(loop);
+  const t = clock.getElapsedTime();
+  const dt = Math.min(t - prevT, 0.1); prevT = t;
+  const mNow = macroNow();
+  stars.forEach(st => {
+    st.group.quaternion.copy(camera.quaternion);                 // 星面始终朝向镜头，任何视角轮廓可读
+    st.spinner.rotation.z = t * st.spin * 0.55;                  // 持续自转：风车式面内旋转
+    st.spinner.rotation.y = Math.sin(t * st.spin * 1.6) * 0.42;  // 轻微 3D 摇摆，露出厚度
+    // 沿地势行走：横向平滑走向目标位置，高度取脚下云面
+    const g = st.group;
+    g.position.x += (st.targetX - g.position.x) * Math.min(1, dt * 2.6);   // 帧率无关的行进速度
+    const lx = g.position.x, ly = -(g.position.z + 4);
+    g.position.y = -5.4 + cloudHeightLocal(lx, ly, t, mNow.stress) + (st.bubbleR || 3) * 0.45 + (st.ownLift || 1);
+  });
+  tipHits.forEach((h, i) => {   // 白点一闪一闪
+    const tw = 0.35 + 0.65 * (0.5 + 0.5 * Math.sin(t * 4.2 + i * 1.9));
+    h.material.opacity = tw;
+    if (h.userData.glow) h.userData.glow.material.opacity = tw;
+    h.scale.setScalar(1 + 0.14 * Math.sin(t * 4.2 + i * 1.9));
+  });
+  sparks.forEach(s => {
+    const o = s.userData.orbit, c = o.center.position;
+    const a = t * o.speed + o.phase;
+    s.position.set(c.x + Math.cos(a) * o.r, c.y + Math.sin(a * 1.3) * o.tilt + 0.3, c.z + Math.sin(a) * o.r * 0.7);
+  });
+  animateCloud(t);
+  constellationLines.forEach(l => {   // 连线跟随星星
+    const pos = l.geometry.attributes.position;
+    l.userData.members.forEach((st, i) => pos.setXYZ(i, st.group.position.x, st.group.position.y, st.group.position.z));
+    pos.needsUpdate = true;
+    l.geometry.computeBoundingSphere();
+  });
+  twinkles.forEach(sp => { sp.material.opacity = 0.45 + 0.5 * Math.sin(t * sp.userData.tw.speed + sp.userData.tw.phase); });
+  camTarget.lerp(camGoal, 0.13);
+  camera.position.copy(camTarget).add(camOffset);
+  camera.lookAt(camTarget);
+  updateTipLabels();
+  drawMinimap();
+  renderer.render(scene, camera);
+}
+const nvStar = stars.find(s => s.sd.ticker === 'NVDA');
+State.focus = nvStar;
+buildTips(nvStar);
+camTarget.copy(nvStar.group.position);
+camGoal.copy(nvStar.group.position);
+loop();
+} // end THREE_OK
+
+/* =====================================================================
+   HUD
+   ===================================================================== */
+const weightHost = document.getElementById('weightRows');
+const sliders = [];
+LAYERS.forEach((name, i) => {
+  const row = document.createElement('div'); row.className = 'wrow';
+  row.innerHTML = `<label>${name}</label><input type="range" min="0" max="60" value="${State.weights[i]}"><span class="wv"></span>`;
+  const inp = row.querySelector('input');
+  inp.addEventListener('input', () => {
+    State.weights[i] = +inp.value;
+    document.querySelectorAll('#presets button').forEach(b => b.classList.remove('active'));
+    refreshHUD(); rebuildAll();
+  });
+  weightHost.appendChild(row); sliders.push(row);
+});
+const presetHost = document.getElementById('presets');
+Object.entries(PRESETS).forEach(([name, w], idx) => {
+  const b = document.createElement('button'); b.textContent = name;
+  if (idx === 0) b.classList.add('active');
+  b.addEventListener('click', () => {
+    State.weights = w.slice();
+    sliders.forEach((row, i) => row.querySelector('input').value = w[i]);
+    document.querySelectorAll('#presets button').forEach(x => x.classList.remove('active'));
+    b.classList.add('active');
+    refreshHUD(); rebuildAll();
+  });
+  presetHost.appendChild(b);
+});
+
+function tempLabel(t) {
+  if (t <= -60) return '深度价值'; if (t <= -20) return '价值区间';
+  if (t < 20) return '大致合理'; if (t < 60) return '溢价区间'; return '泡沫警戒';
+}
+function refreshHUD() {
+  const sd = State.focus?.sd;
+  const loaded = sd?.loaded;
+  const temp = sd ? starTemp(sd) : 0;
+  State.temp = temp;
+  const wsum = State.weights.reduce((a, b) => a + b, 0) || 1;
+  sliders.forEach((row, i) => row.querySelector('.wv').textContent = Math.round(State.weights[i] / wsum * 100) + '%');
+  document.getElementById('tempVal').textContent = loaded ? (temp > 0 ? '+' : '') + temp : '…';
+  document.getElementById('tempVal').style.color = loaded ? tempColorCSS(temp, 85, 62) : '#9a9aa8';
+  document.getElementById('tempLab').textContent = loaded ? tempLabel(temp) : (sd?.status ?? '加载中');
+  document.getElementById('needle').style.top = ((100 - temp) / 200 * 146) + 'px';
+  const scores = sd ? getScores(sd) : null;
+  const v3 = scores ? scores.slice(0, 3).filter(v => v != null) : [];
+  const dvEl = document.getElementById('divergeLab');
+  if (v3.length === 3) {
+    const dv = Math.max(...v3) - Math.min(...v3);
+    dvEl.innerHTML = dv > 60 ? `三个估值角分歧度 <b>高（${Math.round(dv)}）</b>：读数内部矛盾，点角下钻查原因`
+                             : `三个估值角分歧度：低（${Math.round(dv)}），互相印证`;
+  } else {
+    dvEl.innerHTML = `估值角 ${v3.length}/3 有数据${loaded ? '（缺价格的角自动降权，去设置配置行情源）' : ''}`;
+  }
+}
+
+/* =====================================================================
+   下钻面板（0-4 五角；5 红旗；6 宏观）
+   ===================================================================== */
+const modal = document.getElementById('modal');
+const card = document.getElementById('modalCard');
+modal.addEventListener('click', e => { if (e.target === modal) closePanel(); });
+function closePanel() { modal.classList.remove('open'); }
+function panelShell(title, src, bodyHTML) {
+  const gl = title.startsWith('名词解释') ? '' : ' · <span style="color:var(--series-1);cursor:pointer" onclick="openPanel(7)">名词解释 →</span>';
+  card.innerHTML = `<button class="close" onclick="document.getElementById('modal').classList.remove('open')">关闭 ✕</button>
+    <h3>${title}</h3><div class="src">${src}${gl}</div>${bodyHTML}`;
+  modal.classList.add('open');
+}
+function chartCtx(id, hCss = 240) {
+  const c = document.getElementById(id);
+  const w = c.clientWidth || 640;
+  c.width = w * 2; c.height = hCss * 2;
+  c.style.height = hCss + 'px';
+  const x = c.getContext('2d'); x.scale(2, 2);
+  return { x, W: w, H: hCss };
+}
+function drawAxes(x, W, H, pad) {
+  x.strokeStyle = '#383835'; x.lineWidth = 1;
+  x.beginPath(); x.moveTo(pad, H - pad); x.lineTo(W - 12, H - pad); x.stroke();
+}
+/* ================= 下钻面板（真数据版） ================= */
+function F() {   // 焦点公司上下文
+  const sd = State.focus?.sd; if (!sd) return null;
+  const C = Hub.companies[sd.ticker];
+  const qk = TIMELINE[State.timeIdx];
+  return { sd, C, qk, mm: C?.byQ[qk] || C?.byQ[TIMELINE[TIME_LAST]] };
+}
+const fmtB = v => v == null ? '—' : (Math.abs(v) >= 1e9 ? '$' + (v / 1e9).toFixed(1) + 'B' : '$' + (v / 1e6).toFixed(0) + 'M');
+const fmtP = v => v == null ? '—' : (v * 100).toFixed(1) + '%';
+const edgarLink = sd => `https://www.sec.gov/cgi-bin/browse-edgar?action=getcompany&CIK=${sd.cik}&type=10-K&dateb=&owner=include&count=10`;
+
+function termBox(items) {
+  return `<div class="rawbox"><h5>📖 本面板名词逐条解释（零基础版）</h5>
+    <table>${items.map(([t, d]) =>
+      `<tr><td style="width:150px;color:var(--text-primary)">${t}</td>
+       <td style="text-align:left;color:var(--text-secondary);white-space:normal;line-height:1.7">${d}</td></tr>`).join('')}</table></div>`;
+}
+function rawBox(title, rows, note) {
+  return `<div class="rawbox"><h5>📄 财报原文 · ${title}</h5>
+    <table>${rows.map(row => `<tr${row[2] ? ' class="hl"' : ''}><td>${row[0]}</td><td>${row[1]}</td></tr>`).join('')}</table>
+    <div class="rn">${note || '全部数值来自 SEC EDGAR XBRL 实时拉取，蓝色行为工具推导值'}</div></div>`;
+}
+
+function openPanel(i) {
+  const f = F();
+  if (i <= 4 && (!f || !f.sd.loaded)) return unloadedPanel();
+  if (i === 0) return panelL1();
+  if (i === 1) return panelL2();
+  if (i === 2) return panelL3();
+  if (i === 3) return panelL4();
+  if (i === 4) return panelL5();
+  if (i === 5) return panelFlags();
+  if (i === 6) return panelMacro();
+  if (i === 7) return panelGlossary();
+  if (i === 8) return panelSettings();
+}
+function unloadedPanel() {
+  const sd = State.focus?.sd;
+  panelShell(`${sd?.ticker ?? ''} · 数据加载中`, 'EDGAR 直连加载（浏览器实时拉取官方 XBRL）',
+    `<div class="note" style="font-size:14px">状态：${sd?.status ?? '—'}<br><br>
+     基本面数据来源优先级：<b>① 数据仓库</b>（GitHub Actions 每天自动抓取 SEC EDGAR 官方 XBRL 存成静态文件，零代理零限流，标注"✓ EDGAR·库"）→
+     <b>② 浏览器实时拉 EDGAR</b>（直连 → 公共代理，标注"✓ EDGAR"）→
+     <b>③ FMP 财报接口</b>（在 <span style="color:var(--series-1);cursor:pointer" onclick="openPanel(8)">⚙ 设置</span> 配免费 key 后自动兜底，标注"✓ FMP"）。<br><br>
+     AI 芯片/设备/云巨头星座优先加载，其余后台排队。搜索栏可加载数据仓库外的任意美股（走 ②③ 通道）。<br><br>
+     外国发行人（TSM/ASML/ARM 等使用 IFRS 申报）暂不支持 us-gaap 科目解析。</div>`);
+}
+
+/* ---- 设置：行情 key 与手动价格 ---- */
+function panelSettings() {
+  const f = F();
+  panelShell('设置 · 行情数据源', '基本面永远免费直连 EDGAR；价格需行情源（免费）或手动输入',
+    `<div class="derive"><h4>方式一：FMP 免费 API Key（推荐，解锁全部价格功能 + 财报兜底）</h4>
+      <ol><li>访问 financialmodelingprep.com 注册（30 秒，免费档每日 250 次调用）</li>
+      <li>把 API Key 粘贴到下面并保存——当前价 + 历史价自动拉取，L1/L2/L3 与时间回放全部激活</li>
+      <li>额外作用：若 EDGAR 三条通道都被你的网络拦截，加载失败的公司会自动改用 FMP 的财报接口拉取基本面（保存 key 后自动重试失败公司）</li></ol>
+      <div class="ctl-row"><label>FMP API Key</label><input id="fmpKey" type="text" style="flex:1;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;color:#fff;padding:6px 10px" value="${State.fmpKey}" placeholder="粘贴你的 key"></div>
+      <button class="close" style="float:none;margin-top:8px" onclick="saveFmpKey()">保存并拉取行情</button>
+      <div class="note" id="fmpNote"></div>
+    </div>
+    <div class="derive"><h4>方式二：手动输入当前股价（针对焦点公司）</h4>
+      <div class="ctl-row"><label>${f?.sd.ticker ?? ''} 现价 $</label><input id="manPrice" type="number" step="0.01" style="flex:1;background:rgba(255,255,255,.06);border:1px solid var(--border);border-radius:8px;color:#fff;padding:6px 10px" value="${f ? (priceOf(f.sd.ticker) ?? '') : ''}"></div>
+      <button class="close" style="float:none;margin-top:8px" onclick="saveManualPrice()">保存价格</button>
+      <div class="note">手动价格解锁该公司的 L1 绝对估值与 L3 同行相对（历史分位仍需历史价格序列）。</div>
+    </div>`);
+}
+function saveFmpKey() {
+  State.fmpKey = document.getElementById('fmpKey').value.trim();
+  document.getElementById('fmpNote').textContent = State.fmpKey ? '拉取中…' : '已清除';
+  if (State.fmpKey) { fmpLoadQuotes(); GALAXY.filter(s => s.loaded).slice(0, 20).forEach(s => fmpLoadHistory(s.ticker)); retryFailed(); }
+}
+function saveManualPrice() {
+  const f = F(); if (!f) return;
+  const v = parseFloat(document.getElementById('manPrice').value);
+  if (v > 0) { State.manualPrice[f.sd.ticker] = v; Hub.scoreCompany(f.sd.ticker); Hub.recomputeSector(f.sd.chain); refreshHUD(); rebuildAll(); closePanel(); }
+}
+
+/* ---- 名词词典 ---- */
+const GLOSSARY = [
+  ['角1 · 绝对估值（逆向 DCF）', [
+    ['DCF 现金流折现', '把公司未来各年现金流按利率折算成今天的价值再加总。用它做地基，因为股票的内在价值最终只来自它未来能产生的现金，而非故事。'],
+    ['逆向 DCF', '不预测未来，反过来解"当前股价需要公司未来保持多少增速才合理"。反推出的隐含预期客观可检验——再和实际增速对比，溢价一目了然。'],
+    ['FCF 自由现金流', '经营现金流 − 资本开支，公司真正可自由支配的钱。比净利润更难被会计手段修饰。'],
+    ['折现率', '把未来的钱换算成今天的钱所用的利率，本工具 = 10 年期实际利率 + 股权风险溢价。利率越高，未来的钱越不值钱。'],
+    ['永续增速', '假设 10 年后公司进入成熟期的长期增速，取名义 GDP 附近——没有公司能永远快过经济体。'],
+  ]],
+  ['角2 · 历史分位', [
+    ['PE（市盈率）', '现价 ÷ 每股收益（本工具用 净利润TTM ÷ 最新稀释股数 计算 EPS，天然规避拆股伪影）。'],
+    ['分位数', '当前估值在自身历史分布里的位置。估值倍数的均值回归是实证金融里最结实的规律之一。'],
+    ['质变检测', '增速中枢跳档时历史失去参照意义（后续版本自动截断降权）。'],
+  ]],
+  ['角3 · 同行相对', [
+    ['EV/S（企业价值/营收）', '（市值+有息负债−现金）÷ 营收，适合利润波动大的成长股。'],
+    ['OLS 回归', '对同星座已加载公司拟合"增速→倍数"的定价线。贵不可怕，贵得超出定价线能解释的范围才可怕。'],
+    ['残差 / σ', '偏离定价线的距离 ÷ 群体标准差，跨行业可比。'],
+  ]],
+  ['角4 · 质量修正', [
+    ['OCF/NI', '经营现金流 ÷ 净利润，>1 说明利润有真金白银支撑。'],
+    ['ROIC', '每投入 1 元资本赚回多少税后营业利润，护城河的定量表达。'],
+    ['Rule of 40', '增速 + FCF 利润率 ≥ 40 是优秀软件公司的经验线。'],
+    ['SBC 稀释', '股权激励占营收比，股东被隐形稀释的成本。'],
+  ]],
+  ['角5 · 行业周期', [
+    ['Capex（资本开支）', '行业扩产能的钱，既是需求也是周期风险之源。'],
+    ['热度分位', '行业聚合 capex 同比增速相对自身历史的分位——周期温度计。'],
+    ['周期敏感度', '公司营收对行业周期的暴露程度，同样的周期位置不同体质感受不同。'],
+  ]],
+  ['云海 · 宏观', [
+    ['流动性水位', '实际利率（反）+ NFCI（反）+ 联储资产负债表方向合成，0-100。'],
+    ['NFCI', '芝加哥联储金融条件指数，>0 = 偏紧。'],
+    ['高收益债利差', '信用市场的恐惧温度计，明斯基时刻的前哨。'],
+  ]],
+  ['合成与警示', [
+    ['估值温度', '五角加权平均（缺失的角自动从权重中剔除并归一化），-100 深度价值 ~ +100 泡沫警戒。'],
+    ['红旗', '自动检测的风险信号，亮灯不打分。'],
+  ]],
+];
+function panelGlossary() {
+  const body = GLOSSARY.map(([sec, items]) =>
+    `<div class="derive" style="margin-top:12px"><h4>${sec}</h4>
+     <table class="dtable"><tr><th style="width:150px">名词</th><th>是什么 · 为什么用它</th></tr>
+     ${items.map(([t, d]) => `<tr><td>${t}</td><td>${d}</td></tr>`).join('')}</table></div>`).join('');
+  panelShell('名词解释 · 每个指标是什么、为什么用它量化这个维度', '本工具的方法论词典',
+    body + `<div class="note">每个温度读数都能沿着 下钻面板 → 推导链 → EDGAR 原文 一路追到原始数据。</div>`);
+}
+
+/* ---- L1 逆向 DCF（真数据）---- */
+function panelL1() {
+  const f = F(), mm = f.mm, sd = f.sd;
+  const price = priceOf(sd.ticker);
+  if (price == null || !(mm?.fcfps > 0)) {
+    return panelShell(`${sd.ticker} · 角1 绝对估值 — 逆向 DCF`, `财报期 ${f.qk} · EDGAR 实时数据`,
+      `<div class="note" style="font-size:14px">${mm?.fcfps > 0 ? '' : '该期自由现金流为负或缺失，逆向 DCF 不适用（负 FCF 公司建议看角3/角4）。<br>'}
+       ${price == null ? '缺少当前股价——在 <span style="color:var(--series-1);cursor:pointer" onclick="openPanel(8)">设置</span> 里粘贴免费 FMP key 或手动输入价格即可解锁。' : ''}</div>
+       ${rawBox(`${sd.ticker} EDGAR TTM 关键项 · ${f.qk}`, [
+         ['营收 TTM', fmtB(mm?.rev)], ['净利润 TTM', fmtB(mm?.ni)], ['经营现金流 TTM', fmtB(mm?.ocf)],
+         ['资本开支 TTM', fmtB(mm?.capex)], ['自由现金流 TTM（推导）', fmtB(mm?.fcf), 1],
+       ], `科目标签：${f.C?.series.rev?.tag ?? '—'} 等 · <a style="color:var(--series-1)" target="_blank" href="${edgarLink(sd)}">查看 EDGAR 原始 filing →</a>`)}`);
+  }
+  const g0 = Math.max((mm.cagr3 ?? 0.05) * 0.7, 0.02);
+  panelShell(`${sd.ticker} · 角1 绝对估值 — 逆向 DCF`, `财报期 ${f.qk} · 价格 $${price}（${State.manualPrice[sd.ticker] ? '手动' : PRICE.live[sd.ticker] ? 'FMP 实时' : '快照'}）· 基本面 EDGAR 实时`,
+    `<div class="big-compare">
+      <div class="box"><div class="k">现价隐含的 10 年增速</div><div class="v" id="l1i" style="color:var(--series-2)"></div></div>
+      <div class="box"><div class="k">可实现增速（3年CAGR×0.7）</div><div class="v" id="l1a" style="color:var(--series-1)"></div></div>
+      <div class="box"><div class="k">该假设下合理价 vs 现价 $${price.toFixed(0)}</div><div class="v" id="l1f"></div></div>
+    </div>
+    <div class="ilnote"><b>隐含增速：</b>逆向 DCF 反解出的"市场在现价里写下的剧本"。<b>可实现增速：</b>EDGAR 实算的近 3 年营收 CAGR ${fmtP(mm.cagr3)} × 0.7 衰减。<b>折现率</b>已挂钩宏观快照实际利率 ${macroAt(State.timeIdx).realRate}%。</div>
+    <div class="ctl-row"><label>你的预期增速</label><input id="s_g" type="range" min="0" max="45" step="0.5" value="${(g0 * 100).toFixed(1)}"><span class="cv" id="v_g"></span></div>
+    <div class="ctl-row"><label>折现率</label><input id="s_r" type="range" min="6" max="14" step="0.25" value="${((mm.discount ?? 0.1) * 100).toFixed(2)}"><span class="cv" id="v_r"></span></div>
+    <div class="ctl-row"><label>永续增速</label><input id="s_t" type="range" min="1" max="5" step="0.25" value="4.00"><span class="cv" id="v_t"></span></div>
+    <div class="derive">
+      <h4>打分推导（每一个数字都来自 EDGAR 实时拉取）</h4>
+      <div class="formula">DCF(g) = Σₜ FCF₀(1+g)ᵗ/(1+r)ᵗ + FCF₁₀(1+g∞)/(r−g∞)/(1+r)¹⁰ ，解 DCF(g*) = 现价</div>
+      <ol>
+        <li>每股 FCF = FCF TTM ${fmtB(mm.fcf)} ÷ 稀释股数 ${(mm.shares / 1e9).toFixed(2)}B = <b>$${mm.fcfps.toFixed(2)}</b></li>
+        <li>二分法解 DCF(g*) = $${price.toFixed(0)} → 隐含增速 g* = <b id="d1_ig"></b></li>
+        <li>可实现增速 = 3年营收 CAGR <b>${fmtP(mm.cagr3)}</b> × 0.7 = <b>${fmtP(g0)}</b></li>
+        <li>得分 = (隐含 − 可实现) ÷ 15pp × 100 = <b id="d1_sc"></b></li>
+      </ol>
+    </div>
+    ${rawBox(`${sd.ticker} EDGAR TTM 关键项 · ${f.qk}`, [
+      ['营收 TTM', fmtB(mm.rev)], ['净利润 TTM', fmtB(mm.ni)], ['经营现金流 TTM', fmtB(mm.ocf)],
+      ['资本开支 TTM', fmtB(mm.capex)], ['自由现金流 TTM（推导）', fmtB(mm.fcf), 1],
+      ['稀释股数', (mm.shares / 1e9).toFixed(2) + 'B'], ['市值（价×股数）', fmtB(mm.mktcap), 1],
+    ], `科目：${f.C.series.rev?.tag} / ${f.C.series.ocf?.tag} / ${f.C.series.capex?.tag ?? '—'} · <a style="color:var(--series-1)" target="_blank" href="${edgarLink(sd)}">EDGAR 原始 filing →</a>`)}
+    ${termBox([
+      ['DCF（现金流折现）', '把公司未来每年预计赚到的现金按利率"打折"换算成今天的价值再加总。明年的 100 块不等于今天的 100 块——钱有时间成本和风险。'],
+      ['逆向 DCF', '已知今天的股价，倒推"市场心里认为未来会怎样"。不要求你会预测，只要求你判断市场的预期合不合理。'],
+      ['FCF（自由现金流）', '经营现金流减去资本开支后真正可自由支配的钱，比净利润难造假。'],
+      ['CAGR（年复合增长率）', '把几年的总增长换算成"相当于每年稳定增长多少"（含复利）。例：3 年从 100 到 186 → CAGR≈23%。'],
+      ['TTM', '最近 12 个月滚动合计，比单季平滑、比年报新。'],
+      ['二分法', '不断折半试探，逼近使"DCF 价值 = 现价"成立的那个增速。'],
+    ])}`);
+  const upd = () => {
+    const g = +document.getElementById('s_g').value / 100;
+    const r = +document.getElementById('s_r').value / 100;
+    const gT = +document.getElementById('s_t').value / 100;
+    document.getElementById('v_g').textContent = (g * 100).toFixed(1) + '%';
+    document.getElementById('v_r').textContent = (r * 100).toFixed(2) + '%';
+    document.getElementById('v_t').textContent = (gT * 100).toFixed(2) + '%';
+    const fair = Engine.dcfFair({ fcf0: mm.fcfps, g, gT, r });
+    const ig = Engine.impliedGrowth({ price, fcf0: mm.fcfps, gT, r });
+    document.getElementById('l1i').textContent = (ig * 100).toFixed(1) + '%';
+    document.getElementById('l1a').textContent = (g * 100).toFixed(1) + '%';
+    const el = document.getElementById('l1f');
+    el.textContent = '$' + fair.toFixed(0);
+    el.style.color = fair >= price ? 'var(--series-1)' : 'var(--status-critical)';
+    document.getElementById('d1_ig').textContent = (ig * 100).toFixed(1) + '%';
+    const sc = Engine.scoreL1(ig, g);
+    document.getElementById('d1_sc').textContent = (sc > 0 ? '+' : '') + sc.toFixed(0);
+  };
+  ['s_g', 's_r', 's_t'].forEach(id => document.getElementById(id).addEventListener('input', upd));
+  upd();
+}
+
+/* ---- L2 历史分位（真数据）---- */
+function panelL2() {
+  const f = F(), mm = f.mm, sd = f.sd;
+  const pe = [];
+  TIMELINE.forEach((qk, tj) => {
+    const p = priceOf(sd.ticker, tj, true), m2 = f.C.byQ[qk];
+    if (p != null && m2?.epsTTM > 0) pe.push({ qk, v: p / m2.epsTTM });
+  });
+  if (pe.length < 8) {
+    return panelShell(`${sd.ticker} · 角2 历史分位`, `财报期 ${f.qk}`,
+      `<div class="note" style="font-size:14px">历史 PE 分位需要逐季历史价格序列（当前有 ${pe.length} 期）。
+       在 <span style="color:var(--series-1);cursor:pointer" onclick="openPanel(8)">设置</span> 里粘贴免费 FMP key 即自动拉取并激活本角。<br><br>
+       EPS 口径说明：本工具用 净利润TTM ÷ 最新稀释股数 计算每股收益，天然规避拆股伪影。</div>`);
+  }
+  const cur = pe[pe.length - 1].v;
+  const pct = Math.round((Engine.percentileScore(cur, pe.map(p => p.v)) + 100) / 2);
+  panelShell(`${sd.ticker} · 角2 历史分位 — PE 通道`, `财报期 ${f.qk} · 价格 FMP 历史 × EDGAR EPS`,
+    `<canvas id="c2"></canvas>
+     <div class="ilnote"><b>PE：</b>价格 ÷（净利润TTM ÷ 最新股数）。当前 <b>${cur.toFixed(1)}×</b>，位于 ${TIMELINE.length} 期历史的 <b>${pct}%</b> 分位。得分 = (分位−50)×2 = <b>${getScores(sd)?.[1] ?? '—'}</b>。</div>`);
+  const { x, W, H } = chartCtx('c2', 250);
+  const pad = 40;
+  const lo = Math.min(...pe.map(p => p.v)) * 0.9, hi = Math.max(...pe.map(p => p.v)) * 1.08;
+  const X = i => pad + i / (pe.length - 1) * (W - pad - 16);
+  const Y = v => (H - pad) - (v - lo) / (hi - lo) * (H - pad - 18);
+  x.strokeStyle = '#3987e5'; x.lineWidth = 2; x.beginPath();
+  pe.forEach((p, i) => i ? x.lineTo(X(i), Y(p.v)) : x.moveTo(X(i), Y(p.v))); x.stroke();
+  x.fillStyle = '#d95926'; x.beginPath(); x.arc(X(pe.length - 1), Y(cur), 5, 0, 7); x.fill();
+  x.fillStyle = '#fff'; x.font = '11px system-ui'; x.fillText(cur.toFixed(1) + '×', X(pe.length - 1) - 40, Y(cur) - 10);
+  drawAxes(x, W, H, pad);
+  x.fillStyle = '#898781'; x.font = '10px system-ui';
+  x.fillText(pe[0].qk, pad, H - pad + 14); x.fillText(pe[pe.length - 1].qk, W - 70, H - pad + 14);
+}
+
+/* ---- L3 同行回归（真数据）---- */
+function panelL3() {
+  const f = F(), mm = f.mm, sd = f.sd;
+  if (!mm?.peerPts || !mm.l3fit) {
+    return panelShell(`${sd.ticker} · 角3 同行相对`, `财报期 ${f.qk}`,
+      `<div class="note" style="font-size:14px">同行回归需要同星座 ≥4 家已加载且有价格（EV 需要市值）。
+       当前同星座已加载：${GALAXY.filter(s => s.chain === sd.chain && s.loaded).map(s => s.ticker).join('、') || '仍在加载'}。
+       价格缺失时请在 <span style="color:var(--series-1);cursor:pointer" onclick="openPanel(8)">设置</span> 配置行情源。</div>`);
+  }
+  const fit = mm.l3fit, pts = mm.peerPts;
+  const fitted = fit.a + fit.b * mm.yoy * 100;
+  panelShell(`${sd.ticker} · 角3 同行相对 — 增速×EV/S 回归`, `财报期 ${f.qk} · 同星座已加载 ${pts.length} 家 · 全部 EDGAR 实算`,
+    `<canvas id="c3"></canvas>
+     <div class="ilnote">回归线：本星座"增速每高 1 点市场平均给多少倍 EV/S"。${sd.ticker} 实际 <b>${mm.evs.toFixed(1)}×</b> vs 线上应得 <b>${fitted.toFixed(1)}×</b>，残差 <b>${(mm.evs - fitted).toFixed(1)}×</b>（σ=${fit.sd.toFixed(1)}）→ 得分 <b>${getScores(sd)?.[2] ?? '—'}</b>。</div>`);
+  const { x, W, H } = chartCtx('c3', 280);
+  const pad = 42;
+  const gMax = Math.max(...pts.map(p => p.g)) + 6, eMax = Math.max(...pts.map(p => p.evs)) + 4;
+  const gMin = Math.min(0, ...pts.map(p => p.g));
+  const X = g => pad + (g - gMin) / (gMax - gMin) * (W - pad - 20);
+  const Y = e => (H - pad) - e / eMax * (H - pad - 16);
+  x.strokeStyle = '#898781'; x.lineWidth = 1.5; x.setLineDash([5, 4]);
+  x.beginPath(); x.moveTo(X(gMin), Y(fit.a + fit.b * gMin)); x.lineTo(X(gMax), Y(fit.a + fit.b * gMax)); x.stroke(); x.setLineDash([]);
+  pts.forEach(p => {
+    const me = p.t === sd.ticker;
+    x.fillStyle = me ? '#d95926' : '#3987e5';
+    x.beginPath(); x.arc(X(p.g), Y(p.evs), me ? 7 : 5, 0, 7); x.fill();
+    x.fillStyle = me ? '#fff' : '#c3c2b7'; x.font = (me ? 'bold ' : '') + '10.5px system-ui';
+    x.fillText(p.t, X(p.g) + 8, Y(p.evs) + 3);
+  });
+  drawAxes(x, W, H, pad);
+  x.fillStyle = '#898781'; x.font = '10px system-ui'; x.fillText('营收增速 % →', W / 2 - 30, H - pad + 15);
+}
+
+/* ---- L4 质量（真数据）---- */
+function panelL4() {
+  const f = F(), mm = f.mm, sd = f.sd;
+  const parts = mm?.qualityParts || [];
+  if (!parts.length) return panelShell(`${sd.ticker} · 角4 质量`, '', '<div class="note">质量科目缺失。</div>');
+  const EXPL = {
+    '现金流质量 OCF/NI': '净利润可被会计政策修饰，现金流难造假——比值>1 说明每 1 元利润有真金白银流入。',
+    'ROIC': '每投 1 元资本赚回多少税后营业利润，护城河的定量表达；长期高于资本成本（约8-10%）才是创造价值。',
+    'Rule of 40': '增速+FCF利润率，≥40 为优秀。单看增长奖励烧钱、单看利润奖励躺平，两者之和衡量增长质量。',
+    '利润率趋势': '毛利率 8 季斜率。方向比水平更能反映竞争格局——正斜率=护城河变宽。',
+    '稀释控制': 'SBC 不流出现金但真实稀释股东，高 SBC 公司的自由现金流有水分。',
+  };
+  const rows = parts.map(([name, v, how]) =>
+    `<tr><td>${name}</td><td>${v.toFixed(0)}</td><td>${how}</td></tr>
+     <tr><td colspan="3" style="color:var(--text-muted);font-size:12px;line-height:1.7;padding:2px 8px 10px">${EXPL[name] || ''}</td></tr>`).join('');
+  panelShell(`${sd.ticker} · 角4 质量修正（反向角）`, `财报期 ${f.qk} · EDGAR 8 季序列实算`,
+    `<canvas id="c4"></canvas>
+     <div class="ilnote">综合质量 <b>${mm.quality?.toFixed(0)}</b>/100 → 角得分 = (50−质量)×2 = <b>${getScores(sd)?.[3] ?? '—'}</b>（质量高给温度降温）。</div>
+     <table class="dtable"><tr><th>维度</th><th>得分</th><th>实算</th></tr>${rows}</table>`);
+  const { x, W, H } = chartCtx('c4', 280);
+  const cx = W / 2, cy = H / 2 + 6, R = 92, n = parts.length;
+  const pt = (i, v) => {
+    const a = -Math.PI / 2 + i * Math.PI * 2 / n;
+    return [cx + Math.cos(a) * R * v / 100, cy + Math.sin(a) * R * v / 100];
+  };
+  [25, 50, 75, 100].forEach(lv => {
+    x.strokeStyle = '#2c2c2a'; x.beginPath();
+    for (let i = 0; i <= n; i++) { const [X2, Y2] = pt(i % n, lv); i ? x.lineTo(X2, Y2) : x.moveTo(X2, Y2); }
+    x.stroke();
+  });
+  x.fillStyle = 'rgba(57,135,229,0.22)'; x.strokeStyle = '#3987e5'; x.lineWidth = 2; x.beginPath();
+  parts.forEach(([_, v], i) => { const [X2, Y2] = pt(i, v); i ? x.lineTo(X2, Y2) : x.moveTo(X2, Y2); });
+  x.closePath(); x.fill(); x.stroke();
+  parts.forEach(([name, v], i) => {
+    const [X2, Y2] = pt(i, 122);
+    x.fillStyle = '#c3c2b7'; x.font = '11px system-ui'; x.textAlign = 'center';
+    x.fillText(`${name.split(' ')[0]} ${v.toFixed(0)}`, X2, Y2);
+  });
+  x.textAlign = 'left';
+}
+
+/* ---- L5 行业周期（真数据）---- */
+function panelL5() {
+  const f = F(), mm = f.mm, sd = f.sd;
+  const members = GALAXY.filter(s => s.chain === sd.chain && s.loaded);
+  const capex = TIMELINE.map(qk => members.reduce((a, s) => a + (Hub.companies[s.ticker]?.byQ[qk]?.capex || 0), 0) / 1e9);
+  const inv = TIMELINE.map(qk => f.C.byQ[qk]?.invDays ?? null);
+  panelShell(`${sd.ticker} · 角5 行业周期 — ${sd.chain}`, `财报期 ${f.qk} · 星座内 ${members.length} 家 EDGAR 聚合`,
+    `<canvas id="c5a"></canvas>
+     <div class="ilnote"><b>行业 capex TTM 合计</b>（${sd.chain}星座已加载成员聚合）。热度 = 当期同比在历史中的分位 <b>${mm?.sectorHeat?.toFixed(0) ?? '—'}</b>/100 × 敏感度 <b>${mm?.cycleSens?.toFixed(2) ?? '—'}</b> → 得分 <b>${getScores(sd)?.[4] ?? '—'}</b>。</div>
+     <canvas id="c5b"></canvas>
+     <div class="ilnote"><b>${sd.ticker} 库存天数</b>（库存÷销货成本×365，EDGAR 实算）。持续攀升 = 周期后段预警。</div>`);
+  const line = (id, series, name, col, unit) => {
+    const { x, W, H } = chartCtx(id, 150);
+    const vals = series.filter(v => v != null);
+    if (!vals.length) { x.fillStyle = '#898781'; x.fillText(name + '：数据不足', 40, 70); return; }
+    const pad = 40, lo = Math.min(...vals) * 0.9, hi = Math.max(...vals) * 1.08 || 1;
+    const X = i => pad + i / (series.length - 1) * (W - pad - 18);
+    const Y = v => (H - 28) - (v - lo) / (hi - lo) * (H - 52);
+    x.strokeStyle = col; x.lineWidth = 2; x.beginPath();
+    let started = false;
+    series.forEach((v, i) => { if (v == null) return; started ? x.lineTo(X(i), Y(v)) : x.moveTo(X(i), Y(v)); started = true; });
+    x.stroke();
+    const li = series.length - 1; const lastV = [...series].reverse().find(v => v != null);
+    x.fillStyle = '#c3c2b7'; x.font = '11px system-ui'; x.fillText(name + '（最新 ' + (lastV?.toFixed(1) ?? '—') + unit + '）', pad, 14);
+    x.strokeStyle = '#383835'; x.beginPath(); x.moveTo(pad, H - 28); x.lineTo(W - 18, H - 28); x.stroke();
+    x.fillStyle = '#898781'; x.font = '10px system-ui';
+    x.fillText(TIMELINE[0], pad, H - 10); x.fillText(TIMELINE[TIME_LAST], W - 80, H - 10);
+  };
+  line('c5a', capex, '行业 Capex TTM 合计 $B', '#3987e5', 'B');
+  line('c5b', inv, '库存天数', '#d95926', '天');
+}
+
+/* ---- 红旗 ---- */
+function panelFlags() {
+  const f = F(), sd = f?.sd;
+  const flags = sd?.flags || [];
+  const rows = flags.map(fl =>
+    `<div class="flag-item ${fl.lit ? 'lit' : 'off'}"><div class="dot"></div>
+     <div class="t"><b>${fl.name}</b><div class="ev">${fl.ev}</div></div></div>`).join('');
+  panelShell(`${sd?.ticker ?? ''} · 红旗面板 — 亮灯不打分`, 'EDGAR 数据自动检测 · 计数决定环绕火花数量',
+    (rows || '<div class="note">加载后自动检测。</div>') +
+    `<div class="note">红旗不进入温度合成——无法诚实量化的风险以火花形式强制可见。当前亮灯 ${flags.filter(x => x.lit).length}/${flags.length}。</div>`);
+}
+
+/* ---- 宏观（快照）---- */
+function panelMacro() {
+  panelShell('云海 · 宏观周期（所有星星共享的天气）', MACRO.note,
+    `<canvas id="cm1"></canvas>
+     <div class="ilnote"><b>是什么：</b>名义国债利率减通胀预期。<b>为什么看它：</b>所有长久期资产的"重力"，直接进入角1 折现率。</div>
+     <canvas id="cm2"></canvas>
+     <div class="ilnote"><b>是什么：</b>芝加哥联储金融条件指数，>0 偏紧。<b>为什么看它：</b>"钱紧不紧"的权威合成指数，计入流动性水位。</div>
+     <canvas id="cm3"></canvas>
+     <div class="ilnote"><b>是什么：</b>垃圾债与国债的利差。<b>为什么看它：</b>信用市场恐惧温度计，明斯基前哨；驱动云色。</div>
+     <div class="derive"><h4>当前（${TIMELINE[State.timeIdx]}）</h4>
+     <ol><li>流动性水位 <b>${macroNow().liq}/100</b>（云海地形高度）</li>
+     <li>实际利率 <b>${macroNow().realRate}%</b> → 角1 折现率 = 4.5% + 实际利率 + ERP 5%</li>
+     <li>信用压力 <b>${Math.round(macroNow().stress * 100)}%</b>（云色）</li></ol></div>`);
+  const spark = (id, series, name, col, unit) => {
+    const { x, W, H } = chartCtx(id, 110);
+    const pad = 40, lo = Math.min(...series), hi = Math.max(...series);
+    const X = i => pad + i / (series.length - 1) * (W - pad - 18);
+    const Y = v => (H - 22) - (v - lo) / ((hi - lo) || 1) * (H - 46);
+    x.strokeStyle = col; x.lineWidth = 2; x.beginPath();
+    series.forEach((v, i) => i ? x.lineTo(X(i), Y(v)) : x.moveTo(X(i), Y(v))); x.stroke();
+    const li = series.length - 1;
+    x.fillStyle = col; x.beginPath(); x.arc(X(li), Y(series[li]), 3.5, 0, 7); x.fill();
+    x.fillStyle = '#fff'; x.font = '11px system-ui'; x.fillText(series[li] + unit, X(li) - 40, Y(series[li]) - 6);
+    x.fillStyle = '#c3c2b7'; x.fillText(name, pad, 13);
+    x.fillStyle = '#898781'; x.font = '10px system-ui';
+    x.fillText(MACRO.quarters[0], pad, H - 8); x.fillText('→ ' + MACRO.quarters[MACRO.quarters.length - 1], W - 92, H - 8);
+  };
+  spark('cm1', MACRO.realRate, '10Y 实际利率（%）— 进 L1 折现率', '#3987e5', '%');
+  spark('cm2', MACRO.nfci, '芝加哥联储 NFCI（>0 = 紧）', '#d95926', '');
+  spark('cm3', MACRO.hySpread, '高收益债利差（%）— 驱动云色', '#e34948', '%');
+}
+
+/* ---- 时间面板 ---- */
+const timeSlider = document.getElementById('timeSlider');
+const timeLab = document.getElementById('timeLab');
+function refreshTimeLab() {
+  const m = MACRO_HIST;
+  timeLab.innerHTML = '财报期：' + TIMELINE[State.timeIdx] +
+    `<br>流动性水位 <b style="color:var(--text-primary)">${m.liquidity[State.timeIdx]}/100</b> · 信用压力 <b style="color:var(--text-primary)">${Math.round(m.stress[State.timeIdx]*100)}%</b>`;
+}
+timeSlider.addEventListener('input', () => {
+  State.timeIdx = +timeSlider.value;
+  refreshTimeLab();
+  refreshHUD();
+  rebuildAll();
+});
+refreshTimeLab();
+
+document.getElementById('glossaryBtn').addEventListener('click', () => openPanel(7));
+document.getElementById('settingsBtn').addEventListener('click', () => openPanel(8));
+document.getElementById('searchTicker').addEventListener('keydown', e => { if (e.key === 'Enter') document.getElementById('searchBtn').click(); });
+document.getElementById('searchBtn').addEventListener('click', () => {
+  const t = document.getElementById('searchTicker').value.trim().toUpperCase();
+  if (!t) return;
+  let sd = GALAXY.find(s => s.ticker === t);
+  if (!sd) {
+    sd = { ticker: t, name: t, chain: '自选', cik: null, mkt: 0.34, chg: 0, scores: null, loaded: false, status: '待加载' };
+    GALAXY.push(sd);
+    layoutGalaxy();
+    if (typeof makeStarForNew === 'function') makeStarForNew(sd);
+  }
+  Hub.loadCompany(t);
+});
+
+/* ---- 启动 ---- */
+setFocusHUD();
+UIStatus.init();
+bootLoad();
+</script>
+</body>
+</html>
